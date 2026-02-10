@@ -255,6 +255,10 @@ class HistoryLogger:
         if self.history_file.exists():
             self.history_file.unlink()
     
+    def clear_history(self) -> None:
+        """清空歷程記錄（別名，向後相容）"""
+        self.clear()
+    
     def get_message_count(self) -> int:
         """取得訊息數量"""
         return len(self.get_messages())

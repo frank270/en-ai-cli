@@ -11,21 +11,30 @@ from en_ai_cli.core.platform import PlatformDetector, PlatformType
 @dataclass
 class ExecutionResult:
     """指令執行結果"""
-    success: bool
-    exit_code: int
-    stdout: str
-    stderr: str
     command: str
+    exit_code: int
+    output: str = ""
+    error: str = ""
+    
+    # 向後相容的屬性
+    @property
+    def success(self) -> bool:
+        """執行是否成功"""
+        return self.exit_code == 0
     
     @property
-    def output(self) -> str:
-        """取得完整輸出（合併 stdout 和 stderr）"""
-        output_parts = []
-        if self.stdout:
-            output_parts.append(self.stdout)
-        if self.stderr:
-            output_parts.append(f"[stderr]\n{self.stderr}")
-        return "\n".join(output_parts) if output_parts else ""
+    def stdout(self) -> str:
+        """標準輸出（別名）"""
+        return self.output
+    
+    @property
+    def stderr(self) -> str:
+        """標準錯誤（別名）"""
+        return self.error
+    
+    def is_success(self) -> bool:
+        """執行是否成功（方法形式）"""
+        return self.exit_code == 0
 
 
 class CommandExecutor:
@@ -81,11 +90,16 @@ class CommandExecutor:
         first_cmd = cmd_parts[0].lower()
         return first_cmd in self.PRIVILEGE_COMMANDS
     
+    def check_privilege(self, command: str) -> bool:
+        """檢查指令是否需要特權（別名，向後相容）"""
+        return self.requires_privilege(command)
+    
     def execute(
         self,
         command: str,
         timeout: Optional[int] = 30,
         capture_output: bool = True,
+        require_confirmation: bool = True,
     ) -> ExecutionResult:
         """
         執行指令
@@ -94,6 +108,7 @@ class CommandExecutor:
             command: 要執行的指令
             timeout: 執行逾時時間（秒）
             capture_output: 是否捕獲輸出
+            require_confirmation: 是否需要確認（保留參數，向後相容，實際確認由 UI 層處理）
             
         Returns:
             執行結果
@@ -114,29 +129,26 @@ class CommandExecutor:
             )
             
             return ExecutionResult(
-                success=process.returncode == 0,
-                exit_code=process.returncode,
-                stdout=process.stdout if capture_output else "",
-                stderr=process.stderr if capture_output else "",
                 command=command,
+                exit_code=process.returncode,
+                output=process.stdout if capture_output else "",
+                error=process.stderr if capture_output else "",
             )
             
         except subprocess.TimeoutExpired:
             return ExecutionResult(
-                success=False,
-                exit_code=-1,
-                stdout="",
-                stderr=f"指令執行逾時（超過 {timeout} 秒）",
                 command=command,
+                exit_code=-1,
+                output="",
+                error=f"指令執行逾時（超過 {timeout} 秒）",
             )
             
         except Exception as e:
             return ExecutionResult(
-                success=False,
-                exit_code=-1,
-                stdout="",
-                stderr=f"執行錯誤: {str(e)}",
                 command=command,
+                exit_code=-1,
+                output="",
+                error=f"執行錯誤: {str(e)}",
             )
     
     def execute_safe(
@@ -157,11 +169,10 @@ class CommandExecutor:
         # 檢查空指令
         if not command or not command.strip():
             return ExecutionResult(
-                success=False,
-                exit_code=-1,
-                stdout="",
-                stderr="指令不能為空",
                 command=command,
+                exit_code=-1,
+                output="",
+                error="指令不能為空",
             )
         
         # 檢查是否需要權限（僅警告，不阻止執行）
