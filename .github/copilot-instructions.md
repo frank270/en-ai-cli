@@ -123,14 +123,17 @@ en-ai-cli/
 │   ├── core/                # 核心功能模組
 │   │   ├── config.py        # ✓ 雙層配置管理（workspace/global）
 │   │   ├── platform.py      # ✓ 平台偵測與指令轉換
-│   │   ├── executor.py      # 指令執行引擎（待實作）
-│   │   └── session.py       # Session 管理（待實作）
+│   │   ├── executor.py      # ✓ 指令執行引擎與安全防護
+│   │   └── session.py       # ✓ Session 與角色管理
 │   ├── services/            # 服務層
-│   │   ├── openrouter.py    # ✓ OpenRouter API 客戶端（Free 模型優先）
-│   │   └── history.py       # 對話歷程記錄（待實作）
+│   │   ├── provider_manager.py # ✓ Provider 自動偵測與調度
+│   │   ├── llm_provider.py  # ✓ LLM Provider 抽象基類
+│   │   ├── ollama.py        # ✓ Ollama 本地端支援
+│   │   ├── openrouter.py    # ✓ OpenRouter API 客戶端
+│   │   └── history.py       # ✓ 對話歷程記錄（JSONL/Markdown）
 │   └── ui/                  # 使用者介面
 │       ├── terminal.py      # ✓ Rich 終端介面工具
-│       └── prompts.py       # 互動提示（待實作）
+│       └── prompts.py       # ✓ 指令確認與安全警告 UI
 ├── tests/                   # 測試（pytest）
 ├── docs/                    # 自動生成文檔
 │   └── DEVELOPMENT.md       # 開發文檔
@@ -143,40 +146,36 @@ en-ai-cli/
 **ConfigManager** (src/en_ai_cli/core/config.py):
 
 - 雙層配置：workspace (`./.en-ai/config.json`) 優先於 global (`~/.en-ai/config.json`)
-- 使用 `ConfigScope` enum 區分作用域
-- 支援初始化、讀取、寫入配置
+- 實體化角色設定：將 `DEFAULT_ROLES` 寫入設定檔供使用者自定義
 
-**PlatformDetector** (src/en_ai_cli/core/platform.py):
+**CommandExecutor** (src/en_ai_cli/core/executor.py):
 
-- 自動偵測平台類型（Unix/PowerShell/CMD）
-- 提供跨平台指令轉換功能
-- Shell 名稱識別（fish/bash/zsh 等）
+- **目錄追蹤**: 攔截 `cd` 指令並使用 `os.chdir` 維護 Python 程序內部的 cwd
+- **安全防護**: `analyze_path_safety` 偵測 `..` 指令與系統關鍵路徑
+- **權限管理**: 偵測並提示 `sudo` 指令
 
-**OpenRouterClient** (src/en_ai_cli/services/openrouter.py):
-
-- Free 模型優先策略
-- 模型列表快取（1 小時 TTL）
-- 智慧模型選擇邏輯
-
-**CLI 命令架構** (src/en_ai_cli/cli.py):
-
-- 使用 Click 框架
-- 已實作: init, config (set/get/list), models (list), info
-- 待實作: chat, session 相關命令
-
-**SessionManager** (src/en_ai_cli/core/session.py - 待實作):
+**SessionManager** (src/en_ai_cli/core/session.py):
 
 - Session ID 生成與追蹤
 - 訊息計數與上限檢查（預設 50 則，可配置）
-- 上下文警告機制（達 80% 時提醒用戶）
-- Session 切換與管理
+- 角色 (Role) 資訊持久化與 System Prompt 注入
+- Session 切換與自動封存
 
-**HistoryLogger** (src/en_ai_cli/services/history.py - 待實作):
+**ProviderManager** (src/en_ai_cli/services/provider_manager.py):
+
+- 自動偵測 Ollama 與 OpenRouter 狀態
+- 優先順序策略（Ollama > OpenRouter）
+- 統一模型切換與調度
+
+**Prompts System** (src/en_ai_cli/ui/prompts.py):
+
+- 分級警告 UI：Cyan (安全), Yellow (危險), Bold Red (致命風險)
+- 高風險操作需使用者鍵入 `YES` 確認
+
+**HistoryLogger** (src/en_ai_cli/services/history.py):
 
 - JSONL 格式存儲對話歷程
 - Markdown 匯出功能（封存對話記錄）
-- 訊息查詢與過濾
-- 支援 workspace/global 雙層存儲
 
 ### Configuration Files
 
@@ -263,37 +262,36 @@ en-ai session stats                   # 顯示統計資訊
 - [x] 基本 CLI 命令 (init, config, models, info)
 - [x] Rich 終端介面工具
 
-### Phase 2: 核心對話功能 🚧
-- [ ] 指令執行引擎 (executor.py)
-- [ ] Session 管理器 (session.py)
-  - [ ] Session ID 生成與追蹤
-  - [ ] 訊息計數與上限檢查
-  - [ ] 上下文警告機制
-- [ ] 對話歷程記錄 (history.py)
-  - [ ] JSONL 格式存儲
-  - [ ] Markdown 匯出功能
-  - [ ] 訊息查詢與過濾
-- [ ] chat 命令實作
-  - [ ] AI 對話循環
-  - [ ] 指令建議與確認
-  - [ ] 執行結果回饋
-  - [ ] 上下文警告整合
-- [ ] 互動提示介面 (prompts.py)
+### Phase 2: 核心對話功能 ✅
+- [x] 指令執行引擎 (executor.py)
+- [x] Session 管理器 (session.py)
+- [x] 對話歷程記錄 (history.py)
+- [x] chat 命令實作 (AI 對話循環)
+- [x] 指令建議與確認 UI (prompts.py)
 
-### Phase 3: Session 管理與封存 📅
-- [ ] Session 命令群組
-  - [ ] session list/new/switch
-  - [ ] session export/archive
-  - [ ] session stats
-- [ ] 自動封存功能
-- [ ] 封存檔案管理
-- [ ] 歷程查詢與搜尋
+### Phase 3: Session 管理與封存 ✅
+- [x] Session 命令群組 (list/new/switch)
+- [x] 自動封存功能與 Markdown 匯出
+- [x] 閾值警告機制
 
-### Phase 4: 優化與擴展 🔮
-- [ ] 效能優化
-- [ ] 錯誤處理強化
-- [ ] 多語言支援（如需要）
-- [ ] 插件系統（可選）
+### Phase 4: 角色系統與 Ollama 整合 ✅
+- [x] 實體化角色設定與 `en-ai role` 指令
+- [x] Ollama 本地端 Provider 整合
+- [x] ProviderManager 多源調度
+
+### Phase 5: 安全防護與指令強化 ✅
+- [x] 終端目錄追蹤 (`cd` 攔截)
+- [x] 路徑安全分析與分級警告 UI
+- [x] `YES` 強制確認機制
+
+### Phase 6: 斜線指令 (Slash Commands) 🚧
+- [ ] 攔截 `/help`, `/role`, `/stats`
+- [ ] 不離開對話切換角色
+- [ ] 精美的表格回饋
+
+### Phase 7: 優化與擴展 🔮
+- [ ] 效能優化與插件系統
+- [ ] 多語言支援
 
 ## default_model": "meta-llama/llama-3.2-3b-instruct:free",
   "prefer_free_models": true,
