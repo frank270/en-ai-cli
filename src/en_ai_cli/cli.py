@@ -271,7 +271,28 @@ def chat():
     while True:
         try:
             # 檢查上下文限制
-            if session_mgr.should_warn_limit():
+            if session_mgr.is_at_limit():
+                # 已達上限，強制封存或清理
+                ui.print_error(f"⚠️  上下文已達上限 ({session_mgr.max_messages} 則訊息）！")
+                ui.console.print("\n必須執行以下操作之一：")
+                ui.console.print("  [cyan]1.[/cyan] 封存當前對話並開新 session（推薦）")
+                ui.console.print("  [cyan]2.[/cyan] 清理歷史訊息並繼續")
+                
+                choice = ui.prompt("選擇", default="1")
+                
+                if choice == "1":
+                    new_session_id = prompts.archive_and_new_session(session_mgr, history)
+                    session_id = new_session_id
+                    history = HistoryLogger(sessions_dir, session_id)
+                    ui.console.print()
+                else:
+                    history.clear()
+                    ui.print_success("歷史訊息已清理")
+                    ui.console.print()
+                continue
+            
+            elif session_mgr.should_warn_limit():
+                # 達到警告閾值（80%）
                 new_session_id = prompts.show_context_warning(session_mgr, history)
                 if new_session_id != session_id:
                     # 切換到新 session
@@ -391,15 +412,84 @@ def session():
     pass
 
 
+@session.command("list")
+def session_list():
+    """列出所有 sessions"""
+    from en_ai_cli.core.session import SessionManager
+    from rich.table import Table
+    
+    config = ConfigManager()
+    session_mgr = SessionManager(config)
+    sessions = session_mgr.list_sessions()
+    
+    if not sessions:
+        ui.print_warning("尚無任何 session")
+        return
+    
+    # 創建表格
+    table = Table(title="📋 Session 列表", show_header=True, header_style="bold cyan")
+    table.add_column("Session ID", style="yellow", width=12)
+    table.add_column("建立時間", style="blue", width=20)
+    table.add_column("訊息數", justify="right", style="green", width=10)
+    table.add_column("最後活動", style="magenta", width=20)
+    table.add_column("狀態", justify="center", width=10)
+    
+    # 取得當前 session ID
+    current_id = session_mgr.current_session.session_id if session_mgr.current_session else None
+    
+    # 填充表格資料
+    for s in sessions:
+        is_current = "✓ 當前" if s.session_id == current_id else ""
+        table.add_row(
+            s.session_id,
+            s.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            str(s.message_count),
+            s.last_activity.strftime("%Y-%m-%d %H:%M:%S"),
+            is_current
+        )
+    
+    ui.console.print(table)
+    ui.print_info(f"\n總計：{len(sessions)} 個 sessions")
+
+
+@session.command("switch")
+@click.argument("session_id")
+def session_switch(session_id: str):
+    """切換到指定 session"""
+    from en_ai_cli.core.session import SessionManager
+    
+    config = ConfigManager()
+    session_mgr = SessionManager(config)
+    
+    if session_mgr.switch_session(session_id):
+        ui.print_success(f"已切換到 session: {session_id}")
+    else:
+        ui.print_error(f"Session 不存在: {session_id}")
+
+
 @session.command("stats")
-def session_stats():
-    """顯示當前 session 統計資訊"""
+@click.argument("session_id", required=False)
+def session_stats(session_id: str):
+    """顯示 session 統計資訊"""
     from en_ai_cli.core.session import SessionManager
     from en_ai_cli.ui import prompts
     
     config = ConfigManager()
     session_mgr = SessionManager(config)
-    prompts.show_session_stats(session_mgr)
+    
+    # 如果指定 session_id，先切換（臨時）
+    if session_id:
+        target_session = session_mgr.load_session(session_id)
+        if not target_session:
+            ui.print_error(f"Session 不存在: {session_id}")
+            return
+        # 臨時顯示該 session 的統計
+        old_session = session_mgr._current_session
+        session_mgr._current_session = target_session
+        prompts.show_session_stats(session_mgr)
+        session_mgr._current_session = old_session
+    else:
+        prompts.show_session_stats(session_mgr)
 
 
 @session.command("new")
@@ -446,24 +536,32 @@ def session_export(output: str):
 
 
 @session.command("archive")
-def session_archive():
-    """封存當前 session 並建立新 session"""
+@click.option("--auto-new", is_flag=True, help="封存後自動建立新 session")
+def session_archive(auto_new: bool):
+    """封存當前 session"""
     from en_ai_cli.core.session import SessionManager
-    from en_ai_cli.services.history import HistoryLogger
-    from en_ai_cli.ui import prompts
     
     config = ConfigManager()
     session_mgr = SessionManager(config)
-    session_id = session_mgr.get_session_id()
     
-    # 決定 sessions 目錄
-    if config.is_workspace_mode():
-        sessions_dir = Path.cwd() / ".en-ai" / "sessions"
+    if not session_mgr.current_session:
+        ui.print_warning("無活躍 session 可封存")
+        return
+    
+    session_id = session_mgr.current_session.session_id
+    
+    # 執行封存
+    archive_path = session_mgr.archive_session()
+    
+    if archive_path:
+        ui.print_success(f"Session 已封存至: {archive_path}")
+        
+        # 如果設定自動建立新 session
+        if auto_new:
+            new_id = session_mgr.new_session()
+            ui.print_success(f"已建立新 session: {new_id}")
     else:
-        sessions_dir = Path.home() / ".en-ai" / "sessions"
-    
-    history = HistoryLogger(sessions_dir, session_id)
-    prompts.archive_and_new_session(session_mgr, history)
+        ui.print_error("封存失敗")
 
 
 if __name__ == "__main__":

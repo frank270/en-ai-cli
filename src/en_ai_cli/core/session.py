@@ -191,7 +191,7 @@ class SessionManager:
     
     def switch_session(self, session_id: str) -> bool:
         """
-        切換到指定 session（預留功能）
+        切換到指定 session
         
         Args:
             session_id: Session ID
@@ -199,9 +199,16 @@ class SessionManager:
         Returns:
             True 如果切換成功
         """
-        # TODO: 實作 session 切換邏輯
-        # 需要從歷史中載入指定 session
-        return False
+        # 載入目標 session
+        target_session = self.load_session(session_id)
+        if not target_session:
+            return False
+        
+        # 更新當前 session
+        self._current_session = target_session
+        self._save_current_session(target_session)
+        
+        return True
     
     def list_sessions(self) -> List[Session]:
         """
@@ -311,3 +318,43 @@ class SessionManager:
                 self.current_session_file.unlink()
         
         return success
+    
+    def archive_session(self, session_id: Optional[str] = None) -> Optional[Path]:
+        """
+        封存 session 為 Markdown 檔案
+        
+        Args:
+            session_id: Session ID（如果為 None，使用當前 session）
+            
+        Returns:
+            封存檔案路徑，如果失敗返回 None
+        """
+        from en_ai_cli.services.history import HistoryLogger
+        from datetime import datetime
+        
+        # 決定要封存的 session
+        target_id = session_id or (self.current_session.session_id if self.current_session else None)
+        if not target_id:
+            return None
+        
+        # 檢查 session 是否存在
+        if not self.load_session(target_id):
+            return None
+        
+        # 決定封存目錄
+        if self.config.is_workspace_mode():
+            archives_dir = Path.cwd() / ".en-ai" / "archives"
+        else:
+            archives_dir = Path.home() / ".en-ai" / "archives"
+        
+        archives_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 生成封存檔名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = archives_dir / f"session_{target_id}_{timestamp}.md"
+        
+        # 匯出為 Markdown
+        history = HistoryLogger(self.sessions_dir, target_id)
+        history.save_markdown(archive_path)
+        
+        return archive_path

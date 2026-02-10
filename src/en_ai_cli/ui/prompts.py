@@ -160,7 +160,7 @@ def show_session_stats(session_mgr: SessionManager) -> None:
     table.add_row("訊息數量", str(info["message_count"]))
     table.add_row("上限", str(info["max_messages"]))
     table.add_row("剩餘", str(info["remaining"]))
-    table.add_row("使用率", info["usage_percentage"])
+    table.add_row("使用率", f"{info['usage_percentage']:.1f}%")
     table.add_row("最後活動", info["last_activity"])
     
     console.print(table)

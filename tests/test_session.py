@@ -142,3 +142,45 @@ def test_delete_session(session_manager):
     assert result is True
     assert session_manager.load_session(session_id) is None
     assert session_manager.current_session is None
+
+def test_switch_session(session_manager):
+    """測試切換 session"""
+    # 建立兩個 session
+    id1 = session_manager.new_session()
+    id2 = session_manager.new_session()
+    
+    # 當前應該是 id2
+    assert session_manager.current_session.id == id2
+    
+    # 切換到 id1
+    result = session_manager.switch_session(id1)
+    assert result is True
+    assert session_manager.current_session.id == id1
+    
+    # 切換到不存在的 session
+    result = session_manager.switch_session("nonexistent")
+    assert result is False
+
+
+def test_archive_session(session_manager):
+    """測試封存 session"""
+    from en_ai_cli.services.history import HistoryLogger
+    
+    # 建立 session 並添加一些訊息
+    session_id = session_manager.new_session()
+    history = HistoryLogger(session_manager.sessions_dir, session_id)
+    history.add_user_message("Test message 1")
+    history.add_assistant_message("Response 1")
+    
+    # 封存 session
+    archive_path = session_manager.archive_session(session_id)
+    
+    assert archive_path is not None
+    assert archive_path.exists()
+    assert archive_path.suffix == ".md"
+    assert f"session_{session_id}" in archive_path.name
+    
+    # 檢查內容
+    content = archive_path.read_text(encoding="utf-8")
+    assert "Test message 1" in content
+    assert "Response 1" in content
