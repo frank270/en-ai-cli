@@ -1,52 +1,153 @@
 # En-Ai-Cli 開發文檔
 
+## 開發環境
+
+### 系統要求
+
+- **作業系統**: macOS (Apple Silicon M1/M2), Linux, Windows
+- **Python 版本**: 3.9.13+ (建議使用 3.9.16)
+- **環境管理**: Conda (推薦) 或 venv
+- **套件管理**: pip 或 Poetry
+
+### 推薦開發環境
+
+```bash
+# Python 環境
+Python: 3.9.16
+Conda 環境名稱: py39
+平台: macOS (Apple M1)
+
+# 核心依賴
+click: ^8.1.7
+httpx: ^0.27.0
+pydantic: ^2.5.0
+rich: ^13.7.0
+requests: ^2.32.0
+
+# 開發依賴
+pytest: ^8.0.0
+pytest-cov: ^7.0.0
+black: ^24.0.0
+```
+
+### 環境設定
+
+```bash
+# 1. 建立 Conda 環境（推薦）
+conda create -n py39 python=3.9.16
+conda activate py39
+
+# 2. 安裝專案（開發模式）
+pip install -e .
+
+# 3. 安裝開發依賴
+pip install -r requirements-dev.txt
+
+# 4. 驗證安裝
+en-ai --version
+pytest tests/ -v
+```
+
+### 測試環境
+
+- **測試框架**: pytest 8.0+
+- **覆蓋率工具**: pytest-cov
+- **Mock 工具**: unittest.mock
+- **執行環境**: py39 Conda 環境（非 base 環境）
+
+**重要**: 所有測試都應在 `py39` 環境中執行，避免污染 base 環境：
+```bash
+conda activate py39
+pytest tests/ -v
+```
+
+---
+
 ## 當前版本狀態
 
-**版本**: v0.3.0  
+**版本**: v0.3.5  
 **最後更新**: 2026-02-10  
-**測試狀態**: ✅ 38/38 通過  
-**開發階段**: Phase 3 完成，準備進行實際 API 測試
+**測試狀態**: ✅ 31/31 通過（Ollama 整合）  
+**開發階段**: Phase 3.5 完成，Ollama 本地端支援已整合
 
 ### 已完成功能
 - ✅ 雙層配置管理（workspace/global）
 - ✅ 跨平台指令執行與轉換
+- ✅ LLM Provider 抽象架構
+- ✅ Ollama 本地端整合（優先使用）
 - ✅ OpenRouter API 整合（free 模型優先）
+- ✅ Provider 自動偵測與切換
 - ✅ Session 管理與上下文追蹤
 - ✅ 對話歷程記錄（JSONL + Markdown）
 - ✅ Session 切換與封存
 - ✅ Rich 終端介面
+- ✅ Provider CLI 指令群組（list/status/switch）
 
 ### 待測試功能
+- 🔬 實際 Ollama 連線測試
 - 🔬 實際 OpenRouter API 連線測試
 - 🔬 完整 chat 對話流程驗證
+- 🔬 Provider 自動切換場景測試
 - 🔬 錯誤處理與邊界情況測試
 
 ---
 
 ## 快速開始
 
-### 安裝依賴
+### 開發環境準備
 
 ```bash
-# 使用 Conda + pip（推薦）
-conda create -n py39 python=3.9
+# 1. 建立並啟用 Conda 環境
+conda create -n py39 python=3.9.16
 conda activate py39
+
+# 2. 安裝專案（開發模式）
+cd /path/to/en-ai-cli
 pip install -e .
+
+# 3. 安裝開發工具
 pip install -r requirements-dev.txt
 
-# 使用 Poetry
-poetry install
+# 4. 驗證安裝
+en-ai --version
+en-ai --help
+```
+
+### 執行測試
+
+```bash
+# 確保在正確環境中
+conda activate py39
+
+# 執行所有測試
+pytest tests/ -v
+
+# 執行特定測試
+pytest tests/test_ollama.py -v
+
+# 檢查測試覆蓋率
+pytest tests/ --cov=en_ai_cli --cov-report=html
 ```
 
 ### 開發模式運行
 
 ```bash
-# 使用 Conda 環境（推薦）
+# 啟用開發環境
 conda activate py39
-en-ai --help
 
-# 使用 Poetry
-poetry run en-ai --help
+# 初始化配置
+en-ai init
+
+# 測試 Provider
+en-ai provider list
+en-ai provider status ollama
+
+# 測試模型列表
+en-ai models list
+
+# 開始對話
+en-ai chat
+```
 
 # 使用 Python 模組
 poetry run python -m en_ai_cli --help
