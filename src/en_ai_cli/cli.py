@@ -590,11 +590,11 @@ def chat():
                 content=(
                     "你是一個 CLI 工具的助手。請遵守以下規則：\n"
                     "1. 回答要簡潔直接，避免冗長解釋\n"
-                    "2. 當用戶問如何執行某個操作時，直接給出指令即可\n"
-                    "3. 指令請用程式碼區塊包裹（```bash 或 ```），例如：```bash\nls -la\n```\n"
+                    "2. 當用戶詢問如何執行某個操作時，直接給出指令即可\n"
+                    "3. 指令請用程式碼區塊包裹（```bash 或 ```），且**禁止在區塊內寫入任何註解**\n"
                     "4. 只在必要時提供簡短說明（1-2 句話）\n"
                     "5. 偵測到的平台環境：macOS (fish shell)\n"
-                    "6. **重要**：只建議真實存在的系統指令，不要建議不存在的指令（如 status）\n"
+                    "6. **重要**：只建議真實存在的系統指令，不要建議虛構的指令\n"
                     "7. 如果用戶輸入看起來像是打錯的指令，可以友善提示正確指令"
                 )
             )
@@ -667,19 +667,23 @@ def _extract_command(text: str) -> str:
                 continue
             
             if in_code_block:
-                line = line.strip()
-                if line and not line.startswith("#"):
+                # 移除行尾註解與多餘空格
+                line = line.split("#")[0].strip()
+                if line:
                     command_lines.append(line)
         
         if command_lines:
-            return " ".join(command_lines)
+            # 使用 && 連接多行指令，確保順序執行
+            return " && ".join(command_lines)
     
     # 嘗試提取 $ 開頭的行
     lines = text.split("\n")
     for line in lines:
         line = line.strip()
         if line.startswith("$"):
-            return line[1:].strip()
+            # 同樣移除行尾註解
+            cmd = line[1:].split("#")[0].strip()
+            return cmd
     
     return ""
 

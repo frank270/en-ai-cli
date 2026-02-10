@@ -12,7 +12,7 @@ En-Ai-Cli 是一個智慧的命令列工具，讓你可以直接在終端機中�
 - 🎯 **智慧對話**：在終端機中與 AI 直接對話，獲得即時協助
 - 💡 **指令建議**：AI 根據對話內容自動建議適合的命令
 - ✅ **安全執行**：所有指令執行前都需要你的確認
-- 🤖 **Ollama 整合**：支援本機 Ollama 服務，實現 100% 本機運行的隱私對話
+- 🤖 **Ollama 整合**：支援本機 Ollama 服務，達成 100% 本機運行的隱私對話
 - 🌍 **跨平台支援**：自動偵測並適配 Unix/Linux、macOS、PowerShell、CMD 環境
 - 🆓 **免費優先**：優先使用 Ollama 或 OpenRouter 的免費 AI 模型
 - 📦 **雙層設定**：支援全域和專案層級設定，靈活管理
@@ -157,12 +157,12 @@ en-ai config set prefer_free_models true --global
 
 ## 🛠️ 開發指南
 
-詳細的開發文檔請參考 [DEVELOPMENT.md](docs/DEVELOPMENT.md)。
+詳細的開發文件請參考 [DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
 ### 開發環境設定
 
 ```bash
-# 安裝開發依賴
+# 安裝開發相依套件
 pip install -e ".[dev]"
 
 # 執行測試
@@ -182,20 +182,21 @@ ruff check src/
 
 ```
 en-ai-cli/
+├── .en-ai/                 # 專案特定設定（自動生成）
 ├── src/en_ai_cli/          # 原始碼
-│   ├── core/               # 核心功能（設定、平台偵測）
-│   ├── services/           # 服務層（OpenRouter API）
-│   ├── ui/                 # 使用者介面
+│   ├── core/               # 核心功能（設定、執行引擎、工作階段）
+│   ├── services/           # 服務層（LLM 提供者整合：Ollama/OpenRouter）
+│   ├── ui/                 # 使用者介面（終端、互動提示）
 │   └── cli.py              # CLI 命令入口
 ├── tests/                  # 測試檔案
-├── docs/                   # 文檔
+├── docs/                   # 文件
 └── pyproject.toml          # 專案工具設定 (PEP 518)
 ```
 
 ## 🗺️ 開發路線圖
 
 ### ✅ 第一階段：基礎架構（已完成）
-- [x] 專案結構與依賴管理
+- [x] 專案結構與相依性管理
 - [x] 雙層設定系統
 - [x] 平台偵測與指令轉換
 - [x] OpenRouter API 整合
@@ -217,7 +218,7 @@ en-ai-cli/
 - [ ] 外掛系統支援
 - [ ] 更強大的指令提取與安全性檢查
 - [ ] 多語言支援介面
-- [ ] 網路連接與逾時最佳化
+- [ ] 網路連線與逾時最佳化
 
 ## 📄 授權
 
