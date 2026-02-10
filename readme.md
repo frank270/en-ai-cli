@@ -225,10 +225,12 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 
 ## 🙏 致謝
 
+- [Ollama](https://ollama.ai/) - 強大的本地端 LLM 執行環境
 - [OpenRouter](https://openrouter.ai/) - 提供統一的 AI 模型 API
 - [Click](https://click.palletsprojects.com/) - 優秀的 CLI 框架
 - [Rich](https://rich.readthedocs.io/) - 美觀的終端介面套件
 
 ---
 
-**注意**：本專案目前處於早期開發階段，部分功能仍在實作中。
+**注意**：本專案目前處於早期開發階段，部分功能仍在實作測試中。
+**注意**：本專案只是自己使用，尚未達到生產環境的穩定性。
