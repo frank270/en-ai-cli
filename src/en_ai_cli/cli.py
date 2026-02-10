@@ -752,8 +752,13 @@ def chat():
                     command = _extract_command(ai_message)
                     if command and prompts.confirm_command_execution(command, executor):
                         # 執行指令
-                        result = executor.execute_safe(command)
+                        result = executor.execute(command)
                         prompts.display_execution_result(result)
+                        
+                        # 如果是 cd 指令成功，顯示當前路徑
+                        if command.startswith("cd ") and result.success:
+                            import os
+                            ui.console.print(f"📂 當前路徑已變更為: [bold cyan]{os.getcwd()}[/bold cyan]\n")
                         
                         # 記錄執行結果
                         metadata = {

@@ -26,17 +26,43 @@ def confirm_command_execution(command: str, executor: CommandExecutor) -> bool:
     # 顯示指令
     syntax = Syntax(command, "bash", theme="monokai", line_numbers=False)
     console.print("\n💡 建議執行以下指令：")
-    console.print(Panel(syntax, title="指令", border_style="cyan"))
     
-    # 檢查是否危險
-    if executor.is_dangerous(command):
-        print_warning("⚠️  此指令可能有風險，請仔細確認！")
+    # 執行路徑安全分析
+    is_path_risky, path_messages = executor.analyze_path_safety(command)
+    is_dangerous = executor.is_dangerous(command)
+    
+    border_style = "cyan"
+    title_prefix = ""
+    
+    if is_path_risky:
+        border_style = "bold red"
+        title_prefix = "[🚨 越權風險] "
+    elif is_dangerous:
+        border_style = "bold yellow"
+        title_prefix = "[⚠️ 潛在風險] "
+        
+    console.print(Panel(syntax, title=f"{title_prefix}指令", border_style=border_style))
+    
+    # 顯示分析訊息
+    if is_path_risky:
+        for msg in path_messages:
+            print_warning(f"❌ {msg}")
+        print_warning("⚠️  此指令會操作工作目錄以外的敏感區域！")
+    elif is_dangerous:
+        print_warning("⚠️  此指令涉及破壞性操作（如刪除或修改），請仔細確認！")
     
     # 檢查是否需要權限
     if executor.requires_privilege(command):
         print_info("ℹ️  此指令需要管理員權限")
     
-    # 詢問確認
+    # 分級確認邏輯
+    if is_path_risky:
+        # 高危險指令要求輸入 YES
+        console.print("\n[bold red]此操作具備高風險，請輸入 [white]YES[/white] (全大寫) 以確認執行：[/bold red]")
+        user_confirmation = prompt("確認", default="").strip()
+        return user_confirmation == "YES"
+        
+    # 一般風險指令
     return Confirm.ask("\n是否執行此指令？", default=False)
 
 

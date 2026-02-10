@@ -2,8 +2,10 @@
 
 import subprocess
 import shlex
-from typing import Tuple, Optional
+import os
+from typing import Tuple, Optional, List
 from dataclasses import dataclass
+from pathlib import Path
 
 from en_ai_cli.core.platform import PlatformDetector, PlatformType
 
@@ -50,6 +52,12 @@ class CommandExecutor:
     
     # 需要 sudo/管理員權限的指令前綴
     PRIVILEGE_COMMANDS = {"sudo", "su", "doas"}
+
+    # 系統敏感路徑（絕對路徑）
+    SENSITIVE_PATHS = [
+        "/", "/etc", "/usr", "/bin", "/sbin", "/var", "/dev", "/root",
+        "C:\\Windows", "C:\\System32"
+    ]
     
     def __init__(self, platform: Optional[PlatformType] = None):
         """
@@ -93,7 +101,43 @@ class CommandExecutor:
     def check_privilege(self, command: str) -> bool:
         """檢查指令是否需要特權（別名，向後相容）"""
         return self.requires_privilege(command)
-    
+
+    def analyze_path_safety(self, command: str) -> Tuple[bool, List[str]]:
+        """
+        分析指令中的路徑安全性
+        
+        Returns:
+            (is_risky, messages)
+        """
+        risky = False
+        messages = []
+        cmd_parts = command.split()
+        
+        # 檢查是否包含向上溯源 (..)
+        if ".." in command:
+            risky = True
+            messages.append("偵測到試圖操作父目錄 (..) 的行為")
+            
+        # 檢查是否包含敏感絕對路徑
+        for path in self.SENSITIVE_PATHS:
+            # 使用更嚴格的檢查，確保路徑是作為獨立參數或路徑一部分
+            # 例如檢查是否包含 " /etc" 或以 "/etc" 起頭
+            if path in command:
+                is_actual_path = False
+                for part in cmd_parts:
+                    # 處理可能的參數如 --path=/etc
+                    clean_part = part.split("=")[-1].strip("'\"")
+                    if clean_part == path or clean_part.startswith(path + "/") or (path == "/" and clean_part == "/"):
+                        is_actual_path = True
+                        break
+                
+                if is_actual_path:
+                    risky = True
+                    messages.append(f"偵測到試圖操作系統敏感目錄 ({path})")
+                    break
+                    
+        return risky, messages
+
     def execute(
         self,
         command: str,
@@ -113,6 +157,31 @@ class CommandExecutor:
         Returns:
             執行結果
         """
+        # --- 處理目錄切換指令 (cd) ---
+        cmd_parts = command.strip().split()
+        if cmd_parts and cmd_parts[0] == "cd":
+            try:
+                # 取得目標路徑 (處理空格路徑)
+                target_path = " ".join(cmd_parts[1:]) if len(cmd_parts) > 1 else str(Path.home())
+                # 移除可能的引號
+                target_path = target_path.strip("'\"")
+                # 展開 ~ 符號
+                expanded_path = os.path.expanduser(target_path)
+                # 切換目錄
+                os.chdir(expanded_path)
+                return ExecutionResult(
+                    command=command,
+                    exit_code=0,
+                    output=f"已成功切換目錄至: {os.getcwd()}"
+                )
+            except Exception as e:
+                return ExecutionResult(
+                    command=command,
+                    exit_code=1,
+                    error=f"切換目錄失敗: {str(e)}"
+                )
+
+        # --- 執行一般系統指令 ---
         try:
             # 根據平台設定 shell
             use_shell = True  # 在所有平台上使用 shell 模式以支援管道等功能
