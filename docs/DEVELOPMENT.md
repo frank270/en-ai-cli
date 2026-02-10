@@ -65,30 +65,25 @@ pytest tests/ -v
 
 ## 當前版本狀態
 
-**版本**: v0.3.5  
+**版本**: v0.4.0  
 **最後更新**: 2026-02-10  
-**測試狀態**: ✅ 31/31 通過（Ollama 整合）  
-**開發階段**: Phase 3.5 完成，Ollama 本地端支援已整合
+**測試狀態**: ✅ 40/40 通過（含角色系統與安全防護測試）  
+**開發階段**: Phase 3.5 - Phase 8 完成
 
 ### 已完成功能
 - ✅ 雙層配置管理（workspace/global）
 - ✅ 跨平台指令執行與轉換
-- ✅ LLM Provider 抽象架構
-- ✅ Ollama 本地端整合（優先使用）
-- ✅ OpenRouter API 整合（free 模型優先）
-- ✅ Provider 自動偵測與切換
-- ✅ Session 管理與上下文追蹤
+- ✅ LLM Provider 抽象架構 (Ollama/OpenRouter)
+- ✅ 角色（Persona/Role）系統：支持自定義 System Prompt 與角色切換
+- ✅ 指令安全防護系統：分級警告 (Safe/Dangerous/Critical) 與 `..` 路徑分析
+- ✅ 終端目錄追蹤：攔截 `cd` 與環境變數轉換工具
+- ✅ Session 管理與上下文自動封存
 - ✅ 對話歷程記錄（JSONL + Markdown）
-- ✅ Session 切換與封存
-- ✅ Rich 終端介面
-- ✅ Provider CLI 指令群組（list/status/switch）
 
 ### 待測試功能
-- 🔬 實際 Ollama 連線測試
-- 🔬 實際 OpenRouter API 連線測試
-- 🔬 完整 chat 對話流程驗證
-- 🔬 Provider 自動切換場景測試
-- 🔬 錯誤處理與邊界情況測試
+- 🔬 實際 LLM Provider 連線壓力測試
+- 🔬 複雜路徑安全性邊界測試
+- 🔬 斜線指令 (Slash Commands) 整合驗證
 
 ---
 
@@ -338,43 +333,34 @@ en-ai chat             # 開始 AI 對話（需要 API Key）
 
 ### Phase 3: Session 管理與封存 ✅ (已完成 - v0.3.0)
 - [x] SessionManager 核心方法
-  - `switch_session()` - 切換到指定 session
-  - `archive_session()` - 封存為 Markdown
 - [x] Session 命令群組
-  - `session list` - Rich 表格顯示（含當前狀態標記）
-  - `session new` - 建立新 session
-  - `session switch <id>` - 切換 session
-  - `session stats [id]` - 顯示統計資訊
-  - `session export [output]` - 匯出 Markdown
-  - `session archive --auto-new` - 封存並自動建新 session
 - [x] Chat 命令上下文管理整合
-  - 80% 閾值警告（建議封存）
-  - 100% 上限強制處理（封存或清理）
 - [x] 封存系統
-  - 自動生成檔名：`session_{id}_{timestamp}.md`
-  - 存放位置：`.en-ai/archives/` 或 `~/.en-ai/archives/`
 - [x] 測試完整性
-  - test_switch_session
-  - test_archive_session
-  - 38/38 測試全部通過
 
-### 下一步：實際 API 測試 🔬 (待執行)
-- [ ] 使用真實 OpenRouter API Key 測試
-- [ ] 驗證 chat 命令完整流程
-  - AI 對話功能
-  - 指令建議與執行
-  - 上下文管理（80%/100% 警告）
-  - Session 切換與封存
-- [ ] 錯誤處理驗證
-  - API 錯誤處理
-  - 網路連線問題
-  - 模型選擇失敗
-- [ ] 效能測試
-  - API 響應時間
-  - 歷史記錄載入效能
-  - 大量 session 管理
+### Phase 3.5: Ollama 整合與 Provider 管理 ✅ (已完成 - v0.3.5)
+- [x] LLM Provider 抽象基類
+- [x] OllamaProvider 實作
+- [x] ProviderManager 自動偵測與切換
+- [x] Provider CLI (list/status/switch)
 
-### Phase 4: 優化與擴展 🔮 (規劃中)
+### Phase 4: 角色 (Persona) 系統實體化 ✅ (已完成 - v0.3.6)
+- [x] 實體化 `config.json` 中的角色設定
+- [x] `en-ai role` 指令群組 (list/set/add)
+- [x] Chat 模式角色注入與切換
+
+### Phase 5: 指令執行強化與安全防護 ✅ (已完成 - v0.4.0)
+- [x] 終端目錄追蹤 (`cd` 攔截)
+- [x] 路徑安全分析 (防止 `..` 刪除父目錄)
+- [x] 分級警告 UI (Cyan/Yellow/Red)
+- [x] 高風險指令 `YES` 強制確認機制
+
+### Phase 6: 斜線指令 (Slash Commands) 🚧 (進行中)
+- [ ] 攔截 `/help`, `/role`, `/stats`, `/clear`
+- [ ] 精美的表格 UI 顯示輔助資訊
+- [ ] 不離開對話切換角色功能
+
+### Phase 7: 優化與擴展 🔮 (規劃中)
 - [ ] 效能優化
 - [ ] 錯誤處理強化
 - [ ] 多語言支援（如需要）
