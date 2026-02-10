@@ -82,28 +82,28 @@ en-ai session archive  # 封存對話並開啟新 Session
 en-ai session export   # 將對話匯出為 Markdown
 ```
 
-### Workspace vs 全域配置
+### 配置管理
 
 ```bash
 # 設定配置值
-poetry run en-ai config set color_mode true
-poetry run en-ai config set prefer_free_models true
+en-ai config set color_mode true
+en-ai config set prefer_free_models true
 
 # 取得配置值
-poetry run en-ai config get default_model
+en-ai config get default_model
 
 # 列出所有配置（顯示 workspace 和 global）
-poetry run en-ai config list
+en-ai config list
 ```
 
 ### 模型管理
 
 ```bash
 # 列出所有可用模型
-poetry run en-ai models list
+en-ai models list
 
 # 僅列出免費模型
-poetry run en-ai models list --free
+en-ai models list --free
 ```
 
 ### Workspace vs 全域配置
@@ -189,7 +189,7 @@ en-ai-cli/
 │   └── cli.py              # CLI 命令入口
 ├── tests/                  # 測試檔案
 ├── docs/                   # 文檔
-└── pyproject.toml          # Poetry 配置
+└── pyproject.toml          # 專案工具配置 (PEP 518)
 ```
 
 ## 🗺️ 開發路線圖
