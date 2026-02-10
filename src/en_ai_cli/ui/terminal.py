@@ -22,8 +22,8 @@ history = FileHistory(str(HISTORY_FILE))
 
 # 設定 prompt_toolkit 樣式與 Rich 保持一致
 style = Style.from_dict({
-    "prompt": "bold green",
-    "info": "dim",
+    "prompt": "#00ff00 bold",  # 綠色加粗
+    "info": "#888888",         # 灰色 (替代 dim)
 })
 
 def print_success(message: str) -> None:
