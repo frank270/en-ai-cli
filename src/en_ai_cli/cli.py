@@ -2,6 +2,7 @@
 
 import click
 from pathlib import Path
+from typing import Optional
 
 from en_ai_cli.core.config import ConfigManager, ConfigScope
 from en_ai_cli.core.platform import PlatformDetector
@@ -177,7 +178,20 @@ def init(is_global: bool):
             ui.print_info("請至少設定 Ollama 或 OpenRouter 其中一個")
             return
     
-    # 3. 通用設定
+    # 3. 角色設定
+    ui.print_info("\n🎭 選擇初始角色 (Role)")
+    from en_ai_cli.core.config import DEFAULT_ROLES
+    role_names = list(DEFAULT_ROLES.keys())
+    for i, name in enumerate(role_names, 1):
+        ui.console.print(f"  {i}. {name}")
+    
+    role_choice = ui.prompt("選擇角色編號", default="1")
+    if role_choice.isdigit():
+        idx = int(role_choice) - 1
+        if 0 <= idx < len(role_names):
+            config_data["active_role"] = role_names[idx]
+
+    # 4. 通用設定
     color_mode = ui.confirm("\n🎨 是否啟用彩色模式？", default=True)
     config_data["color_mode"] = color_mode
     config_data["auto_save_history"] = True
@@ -477,6 +491,122 @@ def provider_switch(name: str, is_global: bool):
         ui.print_error(str(e))
 
 
+@cli.group()
+def role():
+    """角色管理 (Persona Management)"""
+    pass
+
+
+@role.command("list")
+def role_list():
+    """列出所有角色"""
+    from rich.table import Table
+    config = ConfigManager()
+    active_role = config.get_active_role_name()
+    roles = config.get_roles()
+    
+    table = Table(title="角色列表")
+    table.add_column("名稱", style="cyan")
+    table.add_column("狀態", style="green")
+    table.add_column("System Prompt", style="white", overflow="ellipsis", max_width=50)
+    
+    for name, data in roles.items():
+        status = "[bold yellow]Active[/bold yellow]" if name == active_role else ""
+        prompt = data.get("system_prompt", "").replace("\n", " ")
+        table.add_row(name, status, prompt)
+    
+    ui.console.print(table)
+
+
+@role.command("set")
+@click.argument("name")
+@click.option("--global", "is_global", is_flag=True, help="設定全域角色")
+def role_set(name: str, is_global: bool):
+    """切換當前角色"""
+    config = ConfigManager()
+    roles = config.get_roles()
+    
+    if name not in roles:
+        ui.print_error(f"找不到角色: {name}")
+        ui.print_info("請使用 'en-ai role list' 查看可用角色")
+        return
+    
+    scope = ConfigScope.GLOBAL if is_global else ConfigScope.WORKSPACE
+    config.set("active_role", name, scope)
+    ui.print_success(f"已切換至角色: {name}")
+
+
+@role.command("add")
+@click.argument("name")
+@click.option("--prompt", "-p", help="System Prompt 內容")
+@click.option("--global", "is_global", is_flag=True, help="儲存至全域")
+def role_add(name: str, prompt: Optional[str], is_global: bool):
+    """新增角色"""
+    config = ConfigManager()
+    
+    if not prompt:
+        prompt = ui.prompt(f"請輸入角色 '{name}' 的 System Prompt")
+    
+    scope = ConfigScope.GLOBAL if is_global else ConfigScope.WORKSPACE
+    roles = config.get("roles", {})
+    roles[name] = {"system_prompt": prompt}
+    config.set("roles", roles, scope)
+    ui.print_success(f"角色 '{name}' 已新增")
+
+
+@role.command("show")
+@click.argument("name")
+def role_show(name: str):
+    """顯示角色詳細資訊"""
+    from rich.panel import Panel
+    config = ConfigManager()
+    roles = config.get_roles()
+    
+    if name not in roles:
+        ui.print_error(f"找不到角色: {name}")
+        return
+    
+    role_data = roles[name]
+    ui.print_header(f"角色: {name}")
+    ui.console.print(Panel(role_data.get("system_prompt", ""), title="System Prompt", border_style="cyan"))
+
+
+@role.command("delete")
+@click.argument("name")
+@click.option("--global", "is_global", is_flag=True, help="從全域刪除")
+def role_delete(name: str, is_global: bool):
+    """刪除角色"""
+    if name == "default":
+        ui.print_error("無法刪除預設角色 (default)")
+        return
+        
+    config = ConfigManager()
+    active_role = config.get_active_role_name()
+    if name == active_role:
+        ui.print_warning(f"角色 '{name}' 正處於活躍狀態，刪除前請先切換。")
+        return
+        
+    scope = ConfigScope.GLOBAL if is_global else ConfigScope.WORKSPACE
+    
+    # 讀取特定作用域的配置，避免刪除 wrong scope
+    config_path = config.workspace_path if scope == ConfigScope.WORKSPACE else config.global_path
+    if not config_path.exists():
+        ui.print_error(f"找不到 {scope} 配置文件")
+        return
+        
+    config_data = config._load_config(config_path)
+    roles = config_data.get("roles", {})
+    
+    if name not in roles:
+        ui.print_error(f"在 {scope} 設定中找不到角色 '{name}'")
+        return
+        
+    if ui.confirm(f"確定要刪除角色 '{name}' 嗎？"):
+        del roles[name]
+        config.set("roles", roles, scope)
+        ui.print_success(f"角色 '{name}' 已刪除")
+
+
 @cli.command()
 def chat():
     """開始 AI 對話"""
@@ -521,6 +651,7 @@ def chat():
     # 顯示歡迎訊息
     ui.print_header("🤖 En-Ai-Cli 對話模式")
     ui.console.print(f"Session ID: [cyan]{session_id}[/cyan]")
+    ui.console.print(f"Role: [yellow]{session_mgr.current_session.role}[/yellow]")
     ui.console.print(f"Provider: [cyan]{provider.get_provider_name()}[/cyan]")
     ui.console.print("輸入 'exit' 或 'quit' 離開，'stats' 查看統計資訊\n")
     
@@ -587,16 +718,7 @@ def chat():
             # 加入系統提示詞（在訊息列表開頭）
             system_prompt = ChatMessage(
                 role="system",
-                content=(
-                    "你是一個 CLI 工具的助手。請遵守以下規則：\n"
-                    "1. 回答要簡潔直接，避免冗長解釋\n"
-                    "2. 當用戶詢問如何執行某個操作時，直接給出指令即可\n"
-                    "3. 指令請用程式碼區塊包裹（```bash 或 ```），且**禁止在區塊內寫入任何註解**\n"
-                    "4. 只在必要時提供簡短說明（1-2 句話）\n"
-                    "5. 偵測到的平台環境：macOS (fish shell)\n"
-                    "6. **重要**：只建議真實存在的系統指令，不要建議虛構的指令\n"
-                    "7. 如果用戶輸入看起來像是打錯的指令，可以友善提示正確指令"
-                )
+                content=config.get_active_role_prompt()
             )
             context_messages.insert(0, system_prompt)
             

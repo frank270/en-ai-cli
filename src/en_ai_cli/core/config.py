@@ -12,6 +12,35 @@ class ConfigScope(str, Enum):
     GLOBAL = "global"
 
 
+DEFAULT_ROLES = {
+    "default": {
+        "system_prompt": (
+            "你是一個充滿活力的 AI 助手。請用繁體中文回答，語氣親切且專業。\n"
+            "當涉及指令建議時，請確保：\n"
+            "1. 指令用程式碼區塊包裹（```bash 或 ```）\n"
+            "2. 區塊內禁止寫入註解\n"
+            "3. 偵測環境：macOS (fish shell)"
+        )
+    },
+    "shell": {
+        "system_prompt": (
+            "你是一位終端機與命令列專家。請根據使用者的作業系統（macOS）建議最佳的命令。\n"
+            "規則：\n"
+            "1. 將所有命令包裹在三引號區塊（```）中，並附上簡短的解釋。\n"
+            "2. 區塊內禁止寫入註解。\n"
+            "3. 只建議真實存在的系統指令。\n"
+            "4. 所有說明必須使用繁體中文。"
+        )
+    },
+    "code": {
+        "system_prompt": (
+            "你是一位世界級的軟體工程師。請提供高品質的程式碼片段與詳盡的解釋。\n"
+            "專注於最佳實作方式、效能優化與程式碼可讀性。所有解釋必須使用繁體中文。"
+        )
+    }
+}
+
+
 class ConfigManager:
     """配置管理器：處理雙層配置（workspace 優先，fallback 到 global）"""
 
@@ -95,6 +124,23 @@ class ConfigManager:
         
         return result
 
+    def get_roles(self) -> Dict[str, Any]:
+        """取得所有可用角色（預設 + 使用者定義）"""
+        roles = DEFAULT_ROLES.copy()
+        user_roles = self.get("roles", {})
+        roles.update(user_roles)
+        return roles
+
+    def get_active_role_name(self) -> str:
+        """取得當前活躍角色的名稱"""
+        return self.get("active_role", "default")
+
+    def get_active_role_prompt(self) -> str:
+        """取得當前活躍角色的 System Prompt"""
+        role_name = self.get_active_role_name()
+        roles = self.get_roles()
+        return roles.get(role_name, DEFAULT_ROLES["default"]).get("system_prompt", "")
+
     def is_workspace_mode(self) -> bool:
         """
         判斷當前是否在 workspace 模式（是否存在 workspace 配置）
@@ -145,6 +191,10 @@ class ConfigManager:
             # OpenRouter 設定
             "prefer_free_models": True,
             "fallback_to_paid": False,
+            
+            # 角色設定
+            "active_role": "default",
+            "roles": {},
             
             # 一般設定
             "color_mode": True,

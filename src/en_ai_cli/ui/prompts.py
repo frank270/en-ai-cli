@@ -156,6 +156,7 @@ def show_session_stats(session_mgr: SessionManager) -> None:
     table.add_column("值", style="white")
     
     table.add_row("Session ID", info["session_id"])
+    table.add_row("角色 (Role)", f"[yellow]{info.get('role', 'default')}[/yellow]")
     table.add_row("建立時間", info["created_at"])
     table.add_row("訊息數量", str(info["message_count"]))
     table.add_row("上限", str(info["max_messages"]))

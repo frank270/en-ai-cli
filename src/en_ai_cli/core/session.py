@@ -18,11 +18,13 @@ class Session:
         created_at: datetime,
         message_count: int = 0,
         last_activity: Optional[datetime] = None,
+        role: str = "default",
     ):
         self.session_id = session_id
         self.created_at = created_at
         self.message_count = message_count
         self.last_activity = last_activity or created_at
+        self.role = role
     
     @property
     def id(self) -> str:
@@ -36,6 +38,7 @@ class Session:
             "created_at": self.created_at.isoformat(),
             "message_count": self.message_count,
             "last_activity": self.last_activity.isoformat(),
+            "role": self.role,
         }
     
     @classmethod
@@ -46,6 +49,9 @@ class Session:
             created_at=datetime.fromisoformat(data["created_at"]),
             message_count=data.get("message_count", 0),
             last_activity=datetime.fromisoformat(data["last_activity"]),
+            role=data.get("role", "default"
+            last_activity=datetime.fromisoformat(data["last_activity"]),
+            role=data.get("role", "default"),
         )
 
 
@@ -98,9 +104,11 @@ class SessionManager:
     def _create_new_session(self) -> Session:
         """建立新 session"""
         session_id = str(uuid.uuid4())[:8]  # 使用短 UUID
+        active_role = self.config.get_active_role_name()
         session = Session(
             session_id=session_id,
             created_at=datetime.now(),
+            role=active_role,
         )
         # 同時存為當前 session 和獨立檔案
         self._save_current_session(session)
@@ -256,6 +264,7 @@ class SessionManager:
         
         return {
             "session_id": session.session_id,
+            "role": session.role,
             "created_at": session.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "message_count": session.message_count,
             "max_messages": self.max_messages,
