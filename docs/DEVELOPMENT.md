@@ -1,27 +1,64 @@
 # En-Ai-Cli 開發文檔
 
+## 當前版本狀態
+
+**版本**: v0.3.0  
+**最後更新**: 2026-02-10  
+**測試狀態**: ✅ 38/38 通過  
+**開發階段**: Phase 3 完成，準備進行實際 API 測試
+
+### 已完成功能
+- ✅ 雙層配置管理（workspace/global）
+- ✅ 跨平台指令執行與轉換
+- ✅ OpenRouter API 整合（free 模型優先）
+- ✅ Session 管理與上下文追蹤
+- ✅ 對話歷程記錄（JSONL + Markdown）
+- ✅ Session 切換與封存
+- ✅ Rich 終端介面
+
+### 待測試功能
+- 🔬 實際 OpenRouter API 連線測試
+- 🔬 完整 chat 對話流程驗證
+- 🔬 錯誤處理與邊界情況測試
+
+---
+
 ## 快速開始
 
 ### 安裝依賴
 
 ```bash
-# 使用 Poetry 安裝依賴
+# 使用 Conda + pip（推薦）
+conda create -n py39 python=3.9
+conda activate py39
+pip install -e .
+pip install -r requirements-dev.txt
+
+# 使用 Poetry
 poetry install
 ```
 
 ### 開發模式運行
 
 ```bash
-# 方式 1: 使用 Poetry
+# 使用 Conda 環境（推薦）
+conda activate py39
+en-ai --help
+
+# 使用 Poetry
 poetry run en-ai --help
 
-# 方式 2: 使用 Python 模組
+# 使用 Python 模組
 poetry run python -m en_ai_cli --help
 ```
 
 ### 測試
 
 ```bash
+# 使用 Conda + pytest
+conda activate py39
+pytest
+
 # 執行所有測試
 poetry run pytest
 
@@ -49,22 +86,34 @@ en-ai-cli/
 ├── src/en_ai_cli/           # 主程式碼
 │   ├── __init__.py
 │   ├── __main__.py          # 支援 python -m 執行
-│   ├── cli.py               # CLI 命令入口
+│   ├── cli.py               # CLI 命令入口 ✅
 │   ├── core/                # 核心功能
-│   │   ├── config.py        # 雙層配置管理
-│   │   ├── platform.py      # 平台偵測
-│   │   ├── executor.py      # 指令執行（待實作）
-│   │   └── session.py       # Session 管理（待實作）
+│   │   ├── config.py        # ✅ 雙層配置管理
+│   │   ├── platform.py      # ✅ 平台偵測與指令轉換
+│   │   ├── executor.py      # ✅ 指令安全執行
+│   │   └── session.py       # ✅ Session 管理與封存
 │   ├── services/            # 服務層
-│   │   ├── openrouter.py    # OpenRouter API 客戶端
-│   │   └── history.py       # 對話歷程（待實作）
+│   │   ├── openrouter.py    # ✅ OpenRouter API 客戶端
+│   │   └── history.py       # ✅ 對話歷程（JSONL/Markdown）
 │   └── ui/                  # 使用者介面
-│       ├── terminal.py      # Rich 終端介面
-│       └── prompts.py       # 互動提示（待實作）
-├── tests/                   # 測試
-├── docs/                    # 文檔（自動生成）
+│       ├── terminal.py      # ✅ Rich 終端介面
+│       └── prompts.py       # ✅ 互動提示與警告
+├── tests/                   # 測試（38 個測試全部通過）
+│   ├── test_config.py       # ConfigManager 測試
+│   ├── test_platform.py     # PlatformDetector 測試
+│   ├── test_executor.py     # CommandExecutor 測試
+│   ├── test_session.py      # SessionManager 測試
+│   ├── test_history.py      # HistoryLogger 測試
+│   └── test_openrouter.py   # OpenRouterClient 測試
+├── docs/                    # 文檔
+│   └── DEVELOPMENT.md       # 開發文檔（本文件）
+├── .github/
+│   └── copilot-instructions.md  # AI 開發指引
+├── requirements.txt         # 核心依賴
+├── requirements-dev.txt     # 開發依賴
+├── setup.py                 # Pip 安裝支援
 ├── pyproject.toml           # Poetry 配置
-└── README.md
+└── README.md                # 專案說明
 ```
 
 ## 核心模組說明
@@ -112,6 +161,24 @@ en-ai models list --free # 僅列出 free 模型
 ### 系統資訊
 ```bash
 en-ai info             # 顯示系統資訊
+```
+
+### Session 管理
+```bash
+en-ai session list                      # 列出所有 sessions
+en-ai session new                       # 建立新 session
+en-ai session switch <session_id>       # 切換 session
+en-ai session stats [session_id]        # 顯示統計資訊
+en-ai session export [output]           # 匯出為 Markdown
+en-ai session archive --auto-new        # 封存當前 session
+```
+
+### Chat 對話
+```bash
+en-ai chat             # 開始 AI 對話（需要 API Key）
+# 對話中可用命令：
+# - stats: 查看 session 統計
+# - exit/quit: 離開對話
 ```
 
 ## 開發指南
@@ -168,16 +235,45 @@ en-ai info             # 顯示系統資訊
   - test_history.py
   - test_executor.py
 
-### Phase 3: Session 管理與封存 📅 (待開發)
-- [ ] Session 命令群組
-  - session list/new/switch
-  - session export/archive
-  - session stats
-- [ ] 自動封存功能
-- [ ] 封存檔案管理
-- [ ] 歷程查詢與搜尋
+### Phase 3: Session 管理與封存 ✅ (已完成 - v0.3.0)
+- [x] SessionManager 核心方法
+  - `switch_session()` - 切換到指定 session
+  - `archive_session()` - 封存為 Markdown
+- [x] Session 命令群組
+  - `session list` - Rich 表格顯示（含當前狀態標記）
+  - `session new` - 建立新 session
+  - `session switch <id>` - 切換 session
+  - `session stats [id]` - 顯示統計資訊
+  - `session export [output]` - 匯出 Markdown
+  - `session archive --auto-new` - 封存並自動建新 session
+- [x] Chat 命令上下文管理整合
+  - 80% 閾值警告（建議封存）
+  - 100% 上限強制處理（封存或清理）
+- [x] 封存系統
+  - 自動生成檔名：`session_{id}_{timestamp}.md`
+  - 存放位置：`.en-ai/archives/` 或 `~/.en-ai/archives/`
+- [x] 測試完整性
+  - test_switch_session
+  - test_archive_session
+  - 38/38 測試全部通過
 
-### Phase 4: 優化與擴展 🔮
+### 下一步：實際 API 測試 🔬 (待執行)
+- [ ] 使用真實 OpenRouter API Key 測試
+- [ ] 驗證 chat 命令完整流程
+  - AI 對話功能
+  - 指令建議與執行
+  - 上下文管理（80%/100% 警告）
+  - Session 切換與封存
+- [ ] 錯誤處理驗證
+  - API 錯誤處理
+  - 網路連線問題
+  - 模型選擇失敗
+- [ ] 效能測試
+  - API 響應時間
+  - 歷史記錄載入效能
+  - 大量 session 管理
+
+### Phase 4: 優化與擴展 🔮 (規劃中)
 - [ ] 效能優化
 - [ ] 錯誤處理強化
 - [ ] 多語言支援（如需要）
@@ -185,15 +281,90 @@ en-ai info             # 顯示系統資訊
 
 ## 常見問題
 
+### 如何進行實際 API 測試？
+
+1. **準備 API Key**
+   ```bash
+   # 取得 OpenRouter API Key (https://openrouter.ai/)
+   export OPENROUTER_API_KEY="sk-or-v1-xxx"
+   ```
+
+2. **初始化配置**
+   ```bash
+   conda activate py39
+   en-ai init
+   # 輸入 API Key 並選擇模型策略
+   ```
+
+3. **測試基本對話**
+   ```bash
+   en-ai chat
+   # 輸入簡單問題測試 AI 回應
+   ```
+
+4. **測試上下文管理**
+   - 發送多則訊息達到 80% 閾值（40/50）
+   - 驗證警告提示
+   - 測試封存功能
+
+5. **測試指令執行**
+   - 詢問需要執行系統指令的問題
+   - 確認指令提示顯示正確
+   - 驗證執行結果記錄
+
 ### 如何測試需要 API Key 的功能？
 
-使用 pytest 的 mock 功能：
+**單元測試**：使用 pytest 的 mock 功能：
 ```python
 @pytest.fixture
 def mock_openrouter(monkeypatch):
     # Mock API 呼叫
     pass
 ```
+
+**整合測試**：使用真實 API Key 但限制呼叫次數：
+- 使用 free 模型降低成本
+- 設置測試專用 session
+- 測試後清理資料
+
+### 如何除錯 chat 命令問題？
+
+1. **啟用詳細日誌**
+   ```python
+   # 在 cli.py 添加 logging
+   import logging
+   logging.basicConfig(level=logging.DEBUG)
+   ```
+
+2. **檢查 session 狀態**
+   ```bash
+   en-ai session stats
+   en-ai session list
+   ```
+
+3. **查看歷史記錄**
+   ```bash
+   # 檢查 JSONL 檔案
+   cat ~/.en-ai/sessions/<session_id>.jsonl
+   
+   # 匯出為 Markdown 檢視
+   en-ai session export output.md
+   ```
+
+### 下次對話開始前的準備工作
+
+**新對話 Checklist**：
+- [ ] 準備 OpenRouter API Key
+- [ ] 執行 `en-ai init` 設定測試環境
+- [ ] 確認所有測試通過：`pytest tests/ -v`
+- [ ] 檢查當前版本：`git tag -l`
+- [ ] 準備測試問題清單（簡單→複雜）
+
+**測試問題範例**：
+1. 簡單問答："Python 如何讀取文件？"
+2. 指令建議："如何查看當前目錄下所有 Python 文件？"
+3. 多輪對話：連續提問測試上下文
+4. 邊界測試：發送大量訊息觸發封存
 
 ### 如何新增支援的平台？
 
