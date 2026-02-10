@@ -134,7 +134,9 @@ class SessionManager:
         return self._current_session.session_id
     
     def get_session_id(self) -> str:
-        """取得當前 session ID"""
+        """取得當前 session ID，如不存在則自動創建"""
+        if self.current_session is None:
+            self._current_session = self._create_new_session()
         return self.current_session.session_id
     
     def increment_message_count(self) -> int:

@@ -54,7 +54,7 @@ def confirm(message: str, default: bool = False) -> bool:
     return Confirm.ask(message, default=default)
 
 
-def prompt(message: str, password: bool = False, default: str = "") -> str:
+def prompt(message: str, password: bool = False, default: str = "", show_default: bool = True) -> str:
     """
     輸入提示
     
@@ -62,11 +62,12 @@ def prompt(message: str, password: bool = False, default: str = "") -> str:
         message: 提示訊息
         password: 是否為密碼（隱藏輸入）
         default: 預設值
+        show_default: 是否顯示預設值
         
     Returns:
         使用者輸入
     """
-    return Prompt.ask(message, password=password, default=default)
+    return Prompt.ask(message, password=password, default=default, show_default=show_default)
 
 
 def display_models_table(models: List[Dict[str, Any]]) -> None:

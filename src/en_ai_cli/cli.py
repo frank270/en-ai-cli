@@ -557,8 +557,9 @@ def chat():
                     history = HistoryLogger(sessions_dir, session_id)
                     ui.console.print()
             
-            # 用戶輸入
-            user_input = ui.prompt("[bold green]You[/bold green]").strip()
+            # 用戶輸入（顯示訊息計數）
+            count_info = f"{session_mgr.current_session.message_count}/{session_mgr.max_messages}"
+            user_input = ui.prompt(f"[bold green]You[/bold green] [dim]({count_info})[/dim]", show_default=False).strip()
             
             if not user_input:
                 continue
@@ -582,6 +583,22 @@ def chat():
                 ChatMessage(role=msg["role"], content=msg["content"])
                 for msg in context_messages_dict
             ]
+            
+            # 加入系統提示詞（在訊息列表開頭）
+            system_prompt = ChatMessage(
+                role="system",
+                content=(
+                    "你是一個 CLI 工具的助手。請遵守以下規則：\n"
+                    "1. 回答要簡潔直接，避免冗長解釋\n"
+                    "2. 當用戶問如何執行某個操作時，直接給出指令即可\n"
+                    "3. 指令請用程式碼區塊包裹（```bash 或 ```），例如：```bash\nls -la\n```\n"
+                    "4. 只在必要時提供簡短說明（1-2 句話）\n"
+                    "5. 偵測到的平台環境：macOS (fish shell)\n"
+                    "6. **重要**：只建議真實存在的系統指令，不要建議不存在的指令（如 status）\n"
+                    "7. 如果用戶輸入看起來像是打錯的指令，可以友善提示正確指令"
+                )
+            )
+            context_messages.insert(0, system_prompt)
             
             # 呼叫 AI
             ui.print_info("思考中...")
