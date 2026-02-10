@@ -3,12 +3,28 @@
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
-from typing import List, Dict, Any
+from rich.prompt import Confirm
+from typing import List, Dict, Any, Optional
+import os
+from pathlib import Path
 
+from prompt_toolkit import prompt as pt_prompt
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.styles import Style
 
 console = Console()
 
+# 決定歷史紀錄檔案路徑
+HISTORY_FILE = Path.home() / ".en-ai" / "chat_history"
+os.makedirs(HISTORY_FILE.parent, exist_ok=True)
+history = FileHistory(str(HISTORY_FILE))
+
+# 設定 prompt_toolkit 樣式與 Rich 保持一致
+style = Style.from_dict({
+    "prompt": "bold green",
+    "info": "dim",
+})
 
 def print_success(message: str) -> None:
     """顯示成功訊息"""
@@ -56,7 +72,7 @@ def confirm(message: str, default: bool = False) -> bool:
 
 def prompt(message: str, password: bool = False, default: str = "", show_default: bool = True) -> str:
     """
-    輸入提示
+    輸入提示（使用 prompt_toolkit 以支援方向鍵與歷史紀錄）
     
     Args:
         message: 提示訊息
@@ -67,8 +83,25 @@ def prompt(message: str, password: bool = False, default: str = "", show_default
     Returns:
         使用者輸入
     """
-    return Prompt.ask(message, password=password, default=default, show_default=show_default)
-
+    # 轉換 Rich 的標記為 ANSI 以供 prompt_toolkit 顯示
+    with console.capture() as capture:
+        console.print(message, end="")
+    prompt_text = ANSI(capture.get())
+    
+    try:
+        user_input = pt_prompt(
+            prompt_text,
+            is_password=password,
+            history=history,
+            style=style,
+        )
+        # 如果使用者直接按 Enter 且有預設值
+        if not user_input.strip() and default:
+            return default
+        return user_input
+    except (KeyboardInterrupt, EOFError):
+        # 讓上層處理中斷
+        raise
 
 def display_models_table(models: List[Dict[str, Any]]) -> None:
     """

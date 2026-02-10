@@ -14,6 +14,7 @@ setup(
         "rich>=13.7.0",
         "httpx>=0.27.0",
         "pydantic>=2.5.0",
+        "prompt_toolkit>=3.0.43",
     ],
     entry_points={
         "console_scripts": [
