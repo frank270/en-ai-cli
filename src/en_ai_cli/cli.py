@@ -5,7 +5,8 @@ from pathlib import Path
 
 from en_ai_cli.core.config import ConfigManager, ConfigScope
 from en_ai_cli.core.platform import PlatformDetector
-from en_ai_cli.services.openrouter import OpenRouterClient
+from en_ai_cli.services.openrouter import OpenRouterProvider
+from en_ai_cli.services.provider_manager import ProviderManager
 from en_ai_cli.ui import terminal as ui
 
 
@@ -20,95 +21,183 @@ def cli():
 @click.option("--global", "is_global", is_flag=True, help="初始化全域配置")
 def init(is_global: bool):
     """初始化 En-Ai-Cli 配置"""
+    from en_ai_cli.services.ollama import OllamaProvider
+    
     scope = ConfigScope.GLOBAL if is_global else ConfigScope.WORKSPACE
     scope_name = "全域" if is_global else "Workspace"
     
     ui.print_header(f"🎉 歡迎使用 En-Ai-Cli！")
-    ui.print_info(f"正在初始化 {scope_name} 配置...")
+    ui.print_info(f"正在初始化 {scope_name} 配置...\n")
     
     config = ConfigManager()
+    config_data = {}
     
-    # 輸入 API Key
-    api_key = ui.prompt("📝 請輸入 OpenRouter API Key", password=True)
+    # 1. 偵測 Ollama
+    ui.print_info("🔍 正在偵測本地 Ollama...")
+    ollama_config = {
+        "ollama_endpoint": "http://localhost:11434",
+        "ollama_default_model": "qwen2.5-coder:3b",
+    }
+    ollama = OllamaProvider(ollama_config)
+    ollama_available = ollama.is_available()
     
-    if not api_key:
-        ui.print_error("API Key 不能為空")
-        return
-    
-    # 測試連線
-    ui.print_info("正在驗證 API Key...")
-    client = OpenRouterClient(api_key)
-    
-    if not client.test_connection():
-        ui.print_error("API Key 驗證失敗，請檢查是否正確")
-        return
-    
-    ui.print_success("API Key 驗證成功")
-    
-    # 取得模型列表
-    ui.print_info("正在取得可用模型...")
-    models = client.get_models()
-    free_models = [m for m in models if m.is_free]
-    paid_models = [m for m in models if not m.is_free]
-    
-    ui.print_info(f"找到 {len(free_models)} 個 free 模型，{len(paid_models)} 個付費模型")
-    
-    # 選擇模型策略
-    ui.print_info("\n🤖 請選擇預設模型策略：")
-    ui.console.print("  1. ✓ 優先使用 free 模型（推薦）")
-    ui.console.print("  2.   允許使用付費模型")
-    ui.console.print("  3.   手動選擇模型")
-    
-    choice = ui.prompt("\n選擇", default="1")
-    
-    prefer_free = True
-    fallback_to_paid = False
-    default_model = None
-    
-    if choice == "1":
-        prefer_free = True
-        fallback_to_paid = False
-        default_model = client.select_best_model(prefer_free=True)
-        ui.print_success("已設定為優先使用 free 模型")
-    elif choice == "2":
-        prefer_free = True
-        fallback_to_paid = True
-        default_model = client.select_best_model(prefer_free=True)
-        ui.print_success("已設定為優先使用 free 模型，無 free 模型時使用付費模型")
-    elif choice == "3":
-        # 顯示 free 模型列表
-        if free_models:
-            ui.console.print("\n[cyan]Free 模型:[/cyan]")
-            for i, model in enumerate(free_models[:10], 1):
-                ui.console.print(f"  {i}. {model.id}")
+    if ollama_available:
+        ui.print_success("✓ 偵測到 Ollama 正在執行")
+        version = ollama.get_version()
+        if version:
+            ui.console.print(f"  版本: {version}")
+        
+        # 取得已安裝的模型
+        try:
+            ollama_models = ollama.list_models()
+            if ollama_models:
+                ui.console.print(f"  已安裝 {len(ollama_models)} 個模型")
+        except:
+            ollama_models = []
+        
+        # 詢問是否使用 Ollama
+        use_ollama = ui.confirm("\n是否將 Ollama 設為預設 provider？", default=True)
+        
+        if use_ollama:
+            config_data["preferred_provider"] = "ollama"
+            config_data.update(ollama_config)
             
-            model_idx = int(ui.prompt("選擇模型編號", default="1")) - 1
-            if 0 <= model_idx < len(free_models):
-                default_model = free_models[model_idx].id
+            # 讓用戶選擇預設模型
+            if ollama_models:
+                ui.console.print("\n[cyan]Ollama 已安裝的模型:[/cyan]")
+                for i, model in enumerate(ollama_models[:10], 1):
+                    ui.console.print(f"  {i}. {model.id}")
+                
+                model_choice = ui.prompt("選擇預設模型編號（直接按 Enter 使用預設）", default="")
+                if model_choice and model_choice.isdigit():
+                    model_idx = int(model_choice) - 1
+                    if 0 <= model_idx < len(ollama_models):
+                        config_data["ollama_default_model"] = ollama_models[model_idx].id
+            
+            ui.print_success(f"\n✓ 已設定使用 Ollama")
+            ui.print_info("  （如需使用 OpenRouter，可稍後執行 'en-ai provider switch openrouter'）")
+            
+            # 還是可以選擇性設定 OpenRouter 作為備援
+            setup_openrouter = ui.confirm("\n是否同時設定 OpenRouter（作為備援）？", default=False)
+            if not setup_openrouter:
+                # 跳到最後的通用設定
+                config_data["color_mode"] = ui.confirm("\n🎨 是否啟用彩色模式？", default=True)
+                config_data["auto_save_history"] = True
+                config_data["max_context_messages"] = 50
+                config_data["model_cache_ttl"] = 3600
+                
+                config.init_config(scope, config_data)
+                ui.print_success(f"\n✓ {scope_name} 配置初始化完成！")
+                ui.print_info("使用 'en-ai chat' 開始對話")
+                return
+    else:
+        ui.print_warning("✗ 未偵測到 Ollama")
+        ui.console.print("  如需使用 Ollama，請先安裝並啟動：https://ollama.ai\n")
+        config_data["preferred_provider"] = "openrouter"
+    
+    # 2. 設定 OpenRouter
+    ui.print_info("📝 設定 OpenRouter")
+    api_key = ui.prompt("請輸入 OpenRouter API Key（直接按 Enter 跳過）", password=True, default="")
+    
+    if api_key:
+        # 測試連線
+        ui.print_info("正在驗證 API Key...")
+        openrouter_config = {
+            "openrouter_api_key": api_key,
+            "prefer_free_models": True,
+        }
+        client = OpenRouterProvider(openrouter_config)
+        
+        if not client.is_available():
+            ui.print_error("API Key 驗證失敗，請檢查是否正確")
+            if not ollama_available:
+                ui.print_error("沒有可用的 provider，初始化失敗")
+                return
+            ui.print_warning("將僅使用 Ollama")
         else:
-            ui.print_warning("沒有可用的 free 模型")
-            default_model = client.select_best_model(prefer_free=False)
+            ui.print_success("API Key 驗證成功")
+            config_data["openrouter_api_key"] = api_key
+            
+            # 取得模型列表
+            ui.print_info("正在取得可用模型...")
+            try:
+                models = client.list_models()
+                free_models = [m for m in models if m.is_free]
+                paid_models = [m for m in models if not m.is_free]
+                
+                ui.print_info(f"找到 {len(free_models)} 個 free 模型，{len(paid_models)} 個付費模型")
+                
+                # 選擇模型策略
+                ui.print_info("\n🤖 OpenRouter 模型策略：")
+                ui.console.print("  1. ✓ 優先使用 free 模型（推薦）")
+                ui.console.print("  2.   允許使用付費模型")
+                ui.console.print("  3.   手動選擇模型")
+                
+                choice = ui.prompt("\n選擇", default="1")
+                
+                prefer_free = True
+                fallback_to_paid = False
+                default_model = None
+                
+                if choice == "1":
+                    prefer_free = True
+                    fallback_to_paid = False
+                    default_model = client.select_best_model(prefer_free=True)
+                    ui.print_success("已設定為優先使用 free 模型")
+                elif choice == "2":
+                    prefer_free = True
+                    fallback_to_paid = True
+                    default_model = client.select_best_model(prefer_free=True)
+                    ui.print_success("已設定為優先使用 free 模型，無 free 模型時使用付費模型")
+                elif choice == "3":
+                    # 顯示 free 模型列表
+                    if free_models:
+                        ui.console.print("\n[cyan]Free 模型:[/cyan]")
+                        for i, model in enumerate(free_models[:10], 1):
+                            ui.console.print(f"  {i}. {model.id}")
+                        
+                        model_idx = int(ui.prompt("選擇模型編號", default="1")) - 1
+                        if 0 <= model_idx < len(free_models):
+                            default_model = free_models[model_idx].id
+                    else:
+                        ui.print_warning("沒有可用的 free 模型")
+                        default_model = client.select_best_model(prefer_free=False)
+                
+                config_data["prefer_free_models"] = prefer_free
+                config_data["fallback_to_paid"] = fallback_to_paid
+                if default_model:
+                    config_data["openrouter_default_model"] = default_model
+                    ui.print_success(f"預設模型: {default_model}")
+            
+            except Exception as e:
+                ui.print_warning(f"取得模型列表失敗: {str(e)}")
+    else:
+        if not ollama_available:
+            ui.print_error("未設定任何 provider，初始化失敗")
+            ui.print_info("請至少設定 Ollama 或 OpenRouter 其中一個")
+            return
     
-    if default_model:
-        ui.print_success(f"預設模型: {default_model}")
-    
-    # 彩色模式
-    color_mode = ui.confirm("\n🎨 是否啟用彩色模式?", default=True)
+    # 3. 通用設定
+    color_mode = ui.confirm("\n🎨 是否啟用彩色模式？", default=True)
+    config_data["color_mode"] = color_mode
+    config_data["auto_save_history"] = True
+    config_data["max_context_messages"] = 50
+    config_data["model_cache_ttl"] = 3600
     
     # 儲存配置
-    config.init_config(scope, {
-        "openrouter_api_key": api_key,
-        "prefer_free_models": prefer_free,
-        "fallback_to_paid": fallback_to_paid,
-        "default_model": default_model,
-        "color_mode": color_mode,
-        "auto_save_history": True,
-        "max_context_messages": 50,
-        "model_cache_ttl": 3600,
-    })
+    config.init_config(scope, config_data)
     
     ui.print_success(f"\n✓ {scope_name} 配置初始化完成！")
-    ui.print_info("使用 'en-ai chat' 開始對話")
+    
+    # 顯示摘要
+    ui.print_info("\n📋 配置摘要：")
+    ui.console.print(f"  Provider: {config_data.get('preferred_provider', 'openrouter')}")
+    if config_data.get("preferred_provider") == "ollama":
+        ui.console.print(f"  Ollama 模型: {config_data.get('ollama_default_model')}")
+    if config_data.get("openrouter_api_key"):
+        ui.console.print(f"  OpenRouter: 已設定")
+    
+    ui.print_info("\n使用 'en-ai chat' 開始對話")
 
 
 @cli.group()
@@ -176,41 +265,67 @@ def models():
 
 @models.command("list")
 @click.option("--free", is_flag=True, help="僅顯示 free 模型")
-def models_list(free: bool):
+@click.option("--provider", type=str, help="指定 provider（ollama 或 openrouter）")
+def models_list(free: bool, provider: str):
     """列出可用模型"""
     config = ConfigManager()
-    api_key = config.get("openrouter_api_key")
+    config_dict = {}
     
-    if not api_key:
-        ui.print_error("尚未設定 API Key，請執行 'en-ai init'")
+    # 載入完整配置
+    if config.global_path.exists():
+        config_dict = config._load_config(config.global_path)
+    if config.workspace_path.exists():
+        workspace_config = config._load_config(config.workspace_path)
+        config_dict.update(workspace_config)
+    
+    manager = ProviderManager(config_dict)
+    
+    # 決定要顯示哪些 providers
+    if provider:
+        providers_to_show = [provider]
+    else:
+        # 顯示所有可用的 providers
+        providers_to_show = manager.get_available_providers()
+    
+    if not providers_to_show:
+        ui.print_error("沒有可用的 provider，請檢查配置")
         return
     
-    ui.print_info("正在取得模型列表...")
-    client = OpenRouterClient(api_key)
-    
-    try:
-        models_list = client.get_free_models() if free else client.get_models()
+    # 依次顯示每個 provider 的模型
+    for provider_name in providers_to_show:
+        provider_obj = manager.get_provider(provider_name)
         
-        if not models_list:
-            ui.print_warning("沒有可用的模型")
-            return
+        if not provider_obj:
+            continue
         
-        # 轉換為字典格式
-        models_data = [
-            {
-                "id": m.id,
-                "name": m.name,
-                "context_length": m.context_length,
-                "is_free": m.is_free,
-            }
-            for m in models_list
-        ]
+        ui.print_header(f"Provider: {provider_name}")
         
-        ui.display_models_table(models_data)
-        ui.print_info(f"\n共 {len(models_list)} 個模型")
-        
-    except Exception as e:
-        ui.print_error(f"取得模型列表失敗: {str(e)}")
+        try:
+            models_list_data = provider_obj.list_models()
+            
+            if free:
+                models_list_data = [m for m in models_list_data if m.is_free]
+            
+            if not models_list_data:
+                ui.print_warning("沒有可用的模型")
+                continue
+            
+            # 轉換為字典格式
+            models_data = [
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "context_length": m.context_length or 0,
+                    "is_free": m.is_free,
+                }
+                for m in models_list_data
+            ]
+            
+            ui.display_models_table(models_data)
+            ui.print_info(f"共 {len(models_list_data)} 個模型\n")
+            
+        except Exception as e:
+            ui.print_error(f"取得 {provider_name} 模型列表失敗: {str(e)}\n")
 
 
 @cli.command()
@@ -232,20 +347,162 @@ def info():
         ui.console.print(f"[cyan]{key}:[/cyan] {value}")
 
 
+@cli.group()
+def provider():
+    """Provider 管理"""
+    pass
+
+
+@provider.command("list")
+def provider_list():
+    """列出所有可用的 providers"""
+    config = ConfigManager()
+    config_dict = {}
+    
+    # 載入完整配置
+    if config.global_path.exists():
+        config_dict = config._load_config(config.global_path)
+    if config.workspace_path.exists():
+        workspace_config = config._load_config(config.workspace_path)
+        config_dict.update(workspace_config)
+    
+    manager = ProviderManager(config_dict)
+    all_providers = manager.list_all_providers()
+    preferred = config_dict.get("preferred_provider", "ollama")
+    
+    ui.print_header("可用的 Providers")
+    
+    for name, status in all_providers.items():
+        is_preferred = name == preferred
+        prefix = "→ " if is_preferred else "  "
+        
+        if status["exists"]:
+            if status["available"]:
+                status_icon = "✓"
+                status_text = "[green]可用[/green]"
+            else:
+                status_icon = "✗"
+                status_text = "[red]不可用[/red]"
+            
+            ui.console.print(
+                f"{prefix}[cyan]{name}[/cyan] {status_icon} {status_text}"
+            )
+            
+            if status["available"] and status.get("default_model"):
+                ui.console.print(f"      預設模型: {status['default_model']}")
+        else:
+            ui.console.print(f"{prefix}[dim]{name}[/dim] [dim]未設定[/dim]")
+    
+    ui.console.print(f"\n當前 provider: [cyan]{preferred}[/cyan]")
+
+
+@provider.command("status")
+@click.argument("name", required=False)
+def provider_status(name: str):
+    """顯示 provider 詳細狀態"""
+    config = ConfigManager()
+    config_dict = {}
+    
+    # 載入完整配置
+    if config.global_path.exists():
+        config_dict = config._load_config(config.global_path)
+    if config.workspace_path.exists():
+        workspace_config = config._load_config(config.workspace_path)
+        config_dict.update(workspace_config)
+    
+    manager = ProviderManager(config_dict)
+    
+    if not name:
+        # 顯示當前 provider
+        name = config_dict.get("preferred_provider", "ollama")
+    
+    status = manager.get_provider_status(name)
+    
+    if not status["exists"]:
+        ui.print_error(f"未知的 provider: {name}")
+        return
+    
+    ui.print_header(f"Provider: {name}")
+    
+    ui.console.print(f"狀態: {'[green]✓ 可用[/green]' if status['available'] else '[red]✗ 不可用[/red]'}")
+    ui.console.print(f"配置有效: {'[green]是[/green]' if status['config_valid'] else '[red]否[/red]'}")
+    
+    if status.get("default_model"):
+        ui.console.print(f"預設模型: {status['default_model']}")
+    
+    # 顯示相關配置
+    if name == "ollama":
+        endpoint = config_dict.get("ollama_endpoint", "http://localhost:11434")
+        ui.console.print(f"端點: {endpoint}")
+        
+        # 嘗試取得版本資訊
+        if status["available"]:
+            from en_ai_cli.services.ollama import OllamaProvider
+            provider = OllamaProvider(config_dict)
+            version = provider.get_version()
+            if version:
+                ui.console.print(f"版本: {version}")
+    
+    elif name == "openrouter":
+        has_key = bool(config_dict.get("openrouter_api_key"))
+        ui.console.print(f"API Key: {'[green]已設定[/green]' if has_key else '[red]未設定[/red]'}")
+
+
+@provider.command("switch")
+@click.argument("name")
+@click.option("--global", "is_global", is_flag=True, help="設定全域配置")
+def provider_switch(name: str, is_global: bool):
+    """切換到指定的 provider"""
+    config = ConfigManager()
+    config_dict = {}
+    
+    # 載入完整配置
+    if config.global_path.exists():
+        config_dict = config._load_config(config.global_path)
+    if config.workspace_path.exists():
+        workspace_config = config._load_config(config.workspace_path)
+        config_dict.update(workspace_config)
+    
+    manager = ProviderManager(config_dict)
+    
+    try:
+        manager.switch_provider(name)
+        
+        # 儲存配置
+        scope = ConfigScope.GLOBAL if is_global else ConfigScope.WORKSPACE
+        config.set("preferred_provider", name, scope)
+        
+        ui.print_success(f"已切換到 provider: {name}")
+    except ValueError as e:
+        ui.print_error(str(e))
+
+
 @cli.command()
 def chat():
     """開始 AI 對話"""
     from en_ai_cli.core.session import SessionManager
     from en_ai_cli.core.executor import CommandExecutor
     from en_ai_cli.services.history import HistoryLogger, MessageRole
+    from en_ai_cli.services.llm_provider import ChatMessage
     from en_ai_cli.ui import prompts
     
     config = ConfigManager()
+    config_dict = {}
     
-    # 檢查 API Key
-    api_key = config.get("openrouter_api_key")
-    if not api_key:
-        ui.print_error("尚未設定 API Key，請執行 'en-ai init'")
+    # 載入完整配置
+    if config.global_path.exists():
+        config_dict = config._load_config(config.global_path)
+    if config.workspace_path.exists():
+        workspace_config = config._load_config(config.workspace_path)
+        config_dict.update(workspace_config)
+    
+    # 初始化 Provider Manager
+    try:
+        manager = ProviderManager(config_dict)
+        provider = manager.get_current_provider()
+    except RuntimeError as e:
+        ui.print_error(str(e))
+        ui.print_info("\n請執行 'en-ai init' 初始化配置")
         return
     
     # 初始化組件
@@ -260,11 +517,11 @@ def chat():
     
     history = HistoryLogger(sessions_dir, session_id)
     executor = CommandExecutor()
-    client = OpenRouterClient(api_key)
     
     # 顯示歡迎訊息
     ui.print_header("🤖 En-Ai-Cli 對話模式")
     ui.console.print(f"Session ID: [cyan]{session_id}[/cyan]")
+    ui.console.print(f"Provider: [cyan]{provider.get_provider_name()}[/cyan]")
     ui.console.print("輸入 'exit' 或 'quit' 離開，'stats' 查看統計資訊\n")
     
     # 對話主循環
@@ -319,14 +576,18 @@ def chat():
             history.add_user_message(user_input)
             session_mgr.increment_message_count()
             
-            # 取得上下文
-            context_messages = history.get_context_messages(limit=10)
+            # 取得上下文並轉換為 ChatMessage 格式
+            context_messages_dict = history.get_context_messages(limit=10)
+            context_messages = [
+                ChatMessage(role=msg["role"], content=msg["content"])
+                for msg in context_messages_dict
+            ]
             
             # 呼叫 AI
             ui.print_info("思考中...")
             try:
-                response = client.chat(context_messages)
-                ai_message = response["choices"][0]["message"]["content"]
+                response = provider.chat_completion(context_messages)
+                ai_message = response.content
                 
                 # 記錄 AI 回應
                 history.add_assistant_message(ai_message)

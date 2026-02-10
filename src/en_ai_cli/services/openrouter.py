@@ -2,23 +2,12 @@
 
 import httpx
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
 from datetime import datetime, timedelta
+from .llm_provider import LLMProvider, ModelInfo, ChatMessage, ChatResponse
 
 
-@dataclass
-class Model:
-    """AI 模型資料結構"""
-    id: str
-    name: str
-    context_length: int
-    is_free: bool
-    pricing: Dict[str, str]
-    description: Optional[str] = None
-
-
-class OpenRouterClient:
-    """OpenRouter API 客戶端"""
+class OpenRouterProvider(LLMProvider):
+    """OpenRouter API Provider 實作"""
 
     BASE_URL = "https://openrouter.ai/api/v1"
     
@@ -31,28 +20,39 @@ class OpenRouterClient:
         "nousresearch/hermes-3-llama-3.1-405b:free",
     ]
 
-    def __init__(self, api_key: str, prefer_free: bool = True):
+    def __init__(self, config: Dict[str, Any]):
         """
-        初始化 OpenRouter 客戶端
+        初始化 OpenRouter Provider
         
         Args:
-            api_key: OpenRouter API Key
-            prefer_free: 是否優先使用 free 模型
+            config: 配置字典，應包含：
+                - openrouter_api_key: OpenRouter API Key
+                - openrouter_default_model: 預設模型
+                - prefer_free_models: 是否優先使用 free 模型（預設 True）
         """
-        self.api_key = api_key
-        self.prefer_free = prefer_free
+        super().__init__(config)
+        self.api_key = config.get("openrouter_api_key", "")
+        self.prefer_free = config.get("prefer_free_models", True)
+        self.default_model = config.get("openrouter_default_model")
         self.client = httpx.Client(timeout=30.0)
-        self._models_cache: Optional[List[Model]] = None
+        self._models_cache: Optional[List[ModelInfo]] = None
         self._cache_time: Optional[datetime] = None
         self._cache_ttl = timedelta(hours=1)  # 快取 1 小時
+    
+    def get_provider_name(self) -> str:
+        """取得 Provider 名稱"""
+        return "openrouter"
 
-    def test_connection(self) -> bool:
+    def is_available(self) -> bool:
         """
-        測試 API 連線是否正常
+        檢查 OpenRouter API 是否可用
         
         Returns:
-            True 如果連線成功
+            True 如果連線成功且 API key 有效
         """
+        if not self.api_key:
+            return False
+        
         try:
             response = self.client.get(
                 f"{self.BASE_URL}/models",
@@ -62,7 +62,7 @@ class OpenRouterClient:
         except Exception:
             return False
 
-    def get_models(self, force_refresh: bool = False) -> List[Model]:
+    def list_models(self, force_refresh: bool = False) -> List[ModelInfo]:
         """
         取得可用模型列表（帶快取）
         
@@ -92,7 +92,7 @@ class OpenRouterClient:
                 completion_price = float(pricing.get("completion", "0"))
                 is_free = prompt_price == 0 and completion_price == 0
                 
-                model = Model(
+                model = ModelInfo(
                     id=model_data["id"],
                     name=model_data.get("name", model_data["id"]),
                     context_length=model_data.get("context_length", 0),
@@ -112,14 +112,14 @@ class OpenRouterClient:
             # API 失敗時使用已知的 free 模型作為 fallback
             return self._get_fallback_models()
 
-    def get_free_models(self) -> List[Model]:
+    def get_free_models(self) -> List[ModelInfo]:
         """
         取得所有 free 模型
         
         Returns:
             Free 模型列表
         """
-        all_models = self.get_models()
+        all_models = self.list_models()
         return [m for m in all_models if m.is_free]
 
     def select_best_model(self, prefer_free: Optional[bool] = None) -> Optional[str]:
@@ -141,39 +141,53 @@ class OpenRouterClient:
                 return max(free_models, key=lambda m: m.context_length).id
         
         # 如果不優先 free 或沒有 free 模型，選擇最佳的付費模型
-        all_models = self.get_models()
+        all_models = self.list_models()
         if all_models:
             return max(all_models, key=lambda m: m.context_length).id
         
         return None
 
-    def chat(
+    def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[ChatMessage],
         model: Optional[str] = None,
-        max_tokens: int = 1000,
-    ) -> Dict[str, Any]:
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> ChatResponse:
         """
         發送對話請求
         
         Args:
             messages: 對話訊息列表
             model: 模型 ID（如果為 None，自動選擇）
-            max_tokens: 最大 token 數
+            temperature: 溫度參數 (0.0-1.0)
+            max_tokens: 最大 token 數（預設 1000）
+            **kwargs: 其他參數
             
         Returns:
-            API 回應
+            聊天回應
         """
         if model is None:
-            model = self.select_best_model()
+            model = self.default_model or self.select_best_model()
             if model is None:
                 raise ValueError("沒有可用的模型")
         
+        # 轉換訊息格式
+        openrouter_messages = [
+            {"role": msg.role, "content": msg.content}
+            for msg in messages
+        ]
+        
         payload = {
             "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
+            "messages": openrouter_messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens or 1000,
         }
+        
+        # 加入其他自定義參數
+        payload.update(kwargs)
         
         response = self.client.post(
             f"{self.BASE_URL}/chat/completions",
@@ -182,7 +196,29 @@ class OpenRouterClient:
         )
         response.raise_for_status()
         
-        return response.json()
+        data = response.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        usage = data.get("usage", {})
+        
+        return ChatResponse(
+            content=message.get("content", ""),
+            model=model,
+            usage={
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+            finish_reason=choice.get("finish_reason", "stop")
+        )
+    
+    def get_default_model(self) -> Optional[str]:
+        """取得預設模型"""
+        return self.default_model or self.select_best_model()
+    
+    def validate_config(self) -> bool:
+        """驗證配置是否有效"""
+        return bool(self.api_key)
 
     def _get_headers(self) -> Dict[str, str]:
         """取得 API 請求標頭"""
@@ -197,10 +233,10 @@ class OpenRouterClient:
             return False
         return datetime.now() - self._cache_time < self._cache_ttl
 
-    def _get_fallback_models(self) -> List[Model]:
+    def _get_fallback_models(self) -> List[ModelInfo]:
         """取得 fallback 模型列表"""
         return [
-            Model(
+            ModelInfo(
                 id=model_id,
                 name=model_id,
                 context_length=8192,  # 假設的值

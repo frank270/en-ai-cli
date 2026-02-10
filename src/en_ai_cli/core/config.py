@@ -135,8 +135,18 @@ class ConfigManager:
     def _get_default_config(self) -> Dict[str, Any]:
         """取得預設配置"""
         return {
+            # Provider 設定
+            "preferred_provider": "ollama",  # 預設優先使用 ollama
+            
+            # Ollama 設定
+            "ollama_endpoint": "http://localhost:11434",
+            "ollama_default_model": "qwen2.5-coder:3b",
+            
+            # OpenRouter 設定
             "prefer_free_models": True,
             "fallback_to_paid": False,
+            
+            # 一般設定
             "color_mode": True,
             "auto_save_history": True,
             "max_context_messages": 50,
