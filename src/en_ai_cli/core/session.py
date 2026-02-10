@@ -102,7 +102,11 @@ class SessionManager:
     def _create_new_session(self) -> Session:
         """建立新 session"""
         session_id = str(uuid.uuid4())[:8]  # 使用短 UUID
-        active_role = self.config.get_active_role_name()
+        # 向後相容：舊版測試/外部注入的 config 可能沒有角色介面
+        if hasattr(self.config, "get_active_role_name"):
+            active_role = self.config.get_active_role_name()
+        else:
+            active_role = "default"
         session = Session(
             session_id=session_id,
             created_at=datetime.now(),

@@ -12,7 +12,7 @@ from en_ai_cli.ui import terminal as ui
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.4.0")
 def cli():
     """En-Ai-Cli: 基於 CLI 的 AI 對話環境"""
     pass
@@ -987,4 +987,3 @@ def session_archive(auto_new: bool):
 
 if __name__ == "__main__":
     cli()
-

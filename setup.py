@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="en-ai-cli",
-    version="0.2.0",
+    version="0.4.0",
     description="基於 CLI 的 AI 對話環境，支援跨平台指令執行與互動式對話體驗",
     author="Your Name",
     author_email="you@example.com",
@@ -15,6 +15,7 @@ setup(
         "httpx>=0.27.0",
         "pydantic>=2.5.0",
         "prompt_toolkit>=3.0.43",
+        "requests>=2.32.0",
     ],
     entry_points={
         "console_scripts": [

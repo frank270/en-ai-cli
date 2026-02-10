@@ -25,9 +25,9 @@ rich: ^13.7.0
 requests: ^2.32.0
 
 # 開發依賴
-pytest: ^8.0.0
-pytest-cov: ^7.0.0
-black: ^24.0.0
+pytest: ^7.4.0
+pytest-cov: ^4.1.0
+black: ^23.12.0
 ```
 
 ### 環境設定
@@ -67,7 +67,7 @@ pytest tests/ -v
 
 **版本**: v0.4.0  
 **最後更新**: 2026-02-10  
-**測試狀態**: ✅ 40/40 通過（含角色系統與安全防護測試）  
+**測試狀態**: ✅ 75/75 通過（pytest -q）  
 **開發階段**: Phase 3.5 - Phase 8 完成
 
 ### 已完成功能
@@ -194,7 +194,7 @@ en-ai-cli/
 │   └── ui/                  # 使用者介面
 │       ├── terminal.py      # ✅ Rich 終端介面
 │       └── prompts.py       # ✅ 互動提示與警告
-├── tests/                   # 測試（38 個測試全部通過）
+├── tests/                   # 測試（75 個測試全部通過）
 │   ├── test_config.py       # ConfigManager 測試
 │   ├── test_platform.py     # PlatformDetector 測試
 │   ├── test_executor.py     # CommandExecutor 測試
@@ -209,7 +209,7 @@ en-ai-cli/
 ├── requirements-dev.txt     # 開發依賴
 ├── setup.py                 # Pip 安裝支援
 ├── pyproject.toml           # Poetry 配置
-└── README.md                # 專案說明
+└── readme.md                # 專案說明
 ```
 
 ## 核心模組說明
