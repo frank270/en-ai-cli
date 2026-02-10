@@ -49,8 +49,6 @@ class Session:
             created_at=datetime.fromisoformat(data["created_at"]),
             message_count=data.get("message_count", 0),
             last_activity=datetime.fromisoformat(data["last_activity"]),
-            role=data.get("role", "default"
-            last_activity=datetime.fromisoformat(data["last_activity"]),
             role=data.get("role", "default"),
         )
 
