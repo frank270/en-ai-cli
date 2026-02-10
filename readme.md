@@ -22,7 +22,7 @@ En-Ai-Cli 是一個智慧的命令列工具，讓你可以直接在終端機中�
 ## 📋 系統需求
 
 - Python 3.9 或更高版本
-- [Poetry](https://python-poetry.org/) (用於依賴管理)
+- [pip](https://pip.pypa.io/en/stable/) (用於套件管理)
 - [Ollama](https://ollama.ai/) (推薦，用於本地 AI 回應)
 - [OpenRouter API Key](https://openrouter.ai/) (選用，作為雲端備援)
 
@@ -35,8 +35,8 @@ En-Ai-Cli 是一個智慧的命令列工具，讓你可以直接在終端機中�
 git clone https://github.com/yourusername/en-ai-cli.git
 cd en-ai-cli
 
-# 安裝依賴
-poetry install
+# 安裝開發模式（推薦在虛擬環境中執行）
+pip install -e .
 ```
 
 ### 初始化
@@ -45,22 +45,22 @@ poetry install
 
 ```bash
 # 初始化配置
-poetry run en-ai init
+en-ai init
 ```
 
 ### 基本使用
 
 ```bash
 # 開始對話
-poetry run en-ai chat
+en-ai chat
 
 # Provider 管理
-poetry run en-ai provider list    # 列出可用服務（Ollama/OpenRouter）
-poetry run en-ai provider status  # 查看當前狀態
-poetry run en-ai provider switch  # 切換優先服務
+en-ai provider list    # 列出可用服務（Ollama/OpenRouter）
+en-ai provider status  # 查看當前狀態
+en-ai provider switch  # 切換優先服務
 
 # 查看可用模型
-poetry run en-ai models list
+en-ai models list
 ```
 
 ## 📖 使用範例
@@ -76,10 +76,10 @@ poetry run en-ai models list
 ### Session 管理
 
 ```bash
-poetry run en-ai session list     # 列出歷史對話
-poetry run en-ai session stats    # 查看當前對話統計
-poetry run en-ai session archive  # 封存對話並開啟新 Session
-poetry run en-ai session export   # 將對話匯出為 Markdown
+en-ai session list     # 列出歷史對話
+en-ai session stats    # 查看當前對話統計
+en-ai session archive  # 封存對話並開啟新 Session
+en-ai session export   # 將對話匯出為 Markdown
 ```
 
 ### Workspace vs 全域配置
@@ -163,19 +163,19 @@ en-ai config set prefer_free_models true --global
 
 ```bash
 # 安裝開發依賴
-poetry install
+pip install -e ".[dev]"
 
 # 執行測試
-poetry run pytest
+pytest
 
 # 測試覆蓋率
-poetry run pytest --cov=en_ai_cli --cov-report=html
+pytest --cov=en_ai_cli --cov-report=html
 
 # 程式碼格式化
-poetry run black src/
+black src/
 
 # 程式碼檢查
-poetry run ruff check src/
+ruff check src/
 ```
 
 ### 專案結構
