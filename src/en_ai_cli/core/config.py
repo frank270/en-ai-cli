@@ -194,7 +194,7 @@ class ConfigManager:
             
             # 角色設定
             "active_role": "default",
-            "roles": {},
+            "roles": DEFAULT_ROLES,
             
             # 一般設定
             "color_mode": True,

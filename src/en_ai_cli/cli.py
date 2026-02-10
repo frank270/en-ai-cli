@@ -637,6 +637,14 @@ def chat():
     
     # 初始化組件
     session_mgr = SessionManager(config)
+    
+    # 檢查是否有角色設定 (針對舊版升級用戶)
+    if not config.get("roles") or not config.get("active_role"):
+        if ui.confirm("🔎 偵測到您尚未初始化角色設定，是否要套用預設角色組合？"):
+            config.set("roles", config._get_default_config()["roles"])
+            config.set("active_role", "default")
+            ui.print_success("✓ 已將預設角色寫入配置檔案")
+
     session_id = session_mgr.get_session_id()
     
     # 決定 sessions 目錄
@@ -653,6 +661,10 @@ def chat():
     ui.console.print(f"Session ID: [cyan]{session_id}[/cyan]")
     ui.console.print(f"Role: [yellow]{session_mgr.current_session.role}[/yellow]")
     ui.console.print(f"Provider: [cyan]{provider.get_provider_name()}[/cyan]")
+    
+    # 提示角色資訊
+    active_role = config.get_active_role_name()
+    ui.console.print(f"⚙️  已載入 [bold yellow]{active_role}[/bold yellow] 角色的專屬系統提示詞")
     ui.console.print("輸入 'exit' 或 'quit' 離開，'stats' 查看統計資訊\n")
     
     # 對話主循環
